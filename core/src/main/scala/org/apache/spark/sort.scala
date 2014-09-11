@@ -17,6 +17,9 @@
 
 package org.apache.spark
 
+import java.io.File
+import scala.sys.process._
+
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
@@ -33,6 +36,13 @@ object Sort {
   def readSlaves(): Array[String] = {
     scala.io.Source.fromFile("/root/spark-ec2/slaves").getLines().toArray
   }
+
+  def gatherHostnames(sc: SparkContext): Array[String] = {
+    sc.parallelize(1 to 1000, 1000).mapPartitions { iter =>
+      val host = "hostname".!!
+      Iterator(host.trim)
+    }.collect().distinct.toArray
+  }
 }
 
 
@@ -47,8 +57,6 @@ object SortDataGenerator {
   }
 
   def genSort(sizeInGB: Int, numParts: Int, numEbsVols: Int = 8): Unit = {
-    import java.io.File
-    import scala.sys.process._
 
     val sizeInBytes = sizeInGB * 1000 * 1000 * 1000
     val numRecords = (sizeInBytes / 100).toLong
