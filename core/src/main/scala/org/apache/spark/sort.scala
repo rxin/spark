@@ -17,7 +17,7 @@
 
 package org.apache.spark
 
-import java.io.File
+import java.io._
 import scala.sys.process._
 
 import org.apache.spark.rdd.RDD
@@ -33,6 +33,32 @@ object Sort {
 
   def readSlaves(): Array[String] = {
     scala.io.Source.fromFile("/root/hosts.txt").getLines().toArray
+  }
+
+  /** Run a command, and return exit code, stdout, and stderr. */
+  def runCommand(cmd: String): (Int, String, String) = {
+    println("running system command: " + cmd)
+    val pb = new java.lang.ProcessBuilder(cmd)
+    val p = pb.start()
+    val exitCode = p.waitFor()
+
+    def read(is: InputStream): String = {
+      val buf = new StringBuffer
+      val b = new BufferedReader(new InputStreamReader(is))
+      var line = b.readLine()
+      while (line != null) {
+        buf.append(line)
+        line = b.readLine()
+      }
+      b.close()
+      buf.toString
+    }
+
+    val stdout = read(p.getInputStream)
+    val stderr = read(p.getErrorStream)
+    println(s"=====================\nstdout for $cmd:\n$stdout\n==========================")
+    println(s"=====================\nstderr for $cmd:\n$stderr\n==========================")
+    (exitCode, stdout, stderr)
   }
 }
 
@@ -53,6 +79,13 @@ object SortGenerateHosts {
 }
 
 
+
+object SortDataValidator {
+
+}
+
+
+
 object SortDataGenerator {
 
   def main(args: Array[String]): Unit = {
@@ -70,9 +103,10 @@ object SortDataGenerator {
 
     val hosts = Sort.readSlaves()
 
-    val output = new NodeLocalRDD[(String, Int, String, String)](sc, numParts, hosts) {
+    val output = new NodeLocalRDD[(String, Int, String, String, String)](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
+        val host = split.asInstanceOf[NodeLocalRDDPartition].node
 
         val start = recordsPerPartition * part
         val volIndex = part % numEbsVols
@@ -84,16 +118,13 @@ object SortDataGenerator {
 
         val outputFile = s"$baseFolder/part$part"
         val cmd = s"/root/gensort/64/gensort -c -b$start -t1 $recordsPerPartition $outputFile"
-        println(cmd)
-        val result = cmd.!!
-        val host = "hostname".!!
-        println(s"$part\t$host\t$outputFile\t$result")
-        Iterator((host, part, outputFile, result.trim))
+        val (exitCode, stdout, stderr) = Sort.runCommand(cmd)
+        Iterator((host, part, outputFile, stdout, stderr))
       }
     }.collect()
 
-    output.foreach { case (host, part, outputFile, result) =>
-      println(s"$part\t$host\t$outputFile\t$result")
+    output.foreach { case (host, part, outputFile, stdout, stderr) =>
+      println(s"$part\t$host\t$outputFile\t$stdout\t$stderr")
     }
   }  // end of genSort
 }
