@@ -116,7 +116,7 @@ object SortDataGenerator {
           new File(baseFolder).mkdirs()
         }
 
-        val outputFile = s"$baseFolder/part$part"
+        val outputFile = s"$baseFolder/part$part.dat"
         val cmd = s"/root/gensort/64/gensort -c -b$start -t1 $recordsPerPartition $outputFile"
         val (exitCode, stdout, stderr) = Sort.runCommand(cmd)
         Iterator((host, part, outputFile, stdout, stderr))
@@ -126,6 +126,14 @@ object SortDataGenerator {
     output.foreach { case (host, part, outputFile, stdout, stderr) =>
       println(s"$part\t$host\t$outputFile\t$stdout\t$stderr")
     }
+
+    val checksumFile = s"/root/sort-${sizeInGB}g.sum"
+    println(s"checksum output: $checksumFile")
+    val writer = new java.io.PrintWriter(new File(checksumFile))
+    output.foreach {  case (host, part, outputFile, stdout, stderr) =>
+      writer.write(stderr)
+    }
+    writer.close()
   }  // end of genSort
 }
 
