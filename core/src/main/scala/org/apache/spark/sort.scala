@@ -62,7 +62,9 @@ object SortDataGenerator {
     val numRecords = (sizeInBytes / 100).toLong
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
-    val output = new NodeLocalRDD[(String, Int, String, String)](sc, numParts, Sort.readSlaves()) {
+    val hosts = Sort.gatherHostnames(sc)
+
+    val output = new NodeLocalRDD[(String, Int, String, String)](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
 
