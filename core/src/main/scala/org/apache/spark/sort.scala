@@ -30,8 +30,8 @@ object Sort {
 
   }
 
-  def readSlaves(): Seq[String] = {
-    scala.io.Source.fromFile("/root/spark-ec2/slaves").getLines().toSeq
+  def readSlaves(): Array[String] = {
+    scala.io.Source.fromFile("/root/spark-ec2/slaves").getLines().toArray
   }
 }
 
@@ -43,7 +43,7 @@ object SortDataGenerator {
   def main(args: Array[String]): Unit = {
     val sizeInTB = args(0).toInt
     val numParts = args(1).toInt
-    sc = new SparkContext(new SparkConf)
+    sc = new SparkContext(new SparkConf())
   }
 
   def genSort(sizeInGB: Int, numParts: Int, numEbsVols: Int = 8): Unit = {
@@ -98,7 +98,7 @@ object SortDataGenerator {
 class NodeLocalRDDPartition(val index: Int, val node: String) extends Partition
 
 
-abstract class NodeLocalRDD[T: ClassTag](sc: SparkContext, numParts: Int, hosts: Seq[String])
+abstract class NodeLocalRDD[T: ClassTag](sc: SparkContext, numParts: Int, hosts: Array[String])
   extends RDD[T](sc, Nil) with Logging {
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
