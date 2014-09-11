@@ -38,7 +38,7 @@ object Sort {
   /** Run a command, and return exit code, stdout, and stderr. */
   def runCommand(cmd: String): (Int, String, String) = {
     println("running system command: " + cmd)
-    val pb = new java.lang.ProcessBuilder(cmd)
+    val pb = new java.lang.ProcessBuilder(cmd.split(" ") : _*)
     val p = pb.start()
     val exitCode = p.waitFor()
 
