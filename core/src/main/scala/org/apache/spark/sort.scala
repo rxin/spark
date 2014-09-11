@@ -47,7 +47,7 @@ object Sort {
       val b = new BufferedReader(new InputStreamReader(is))
       var line = b.readLine()
       while (line != null) {
-        buf.append(line)
+        buf.append(line + "\n")
         line = b.readLine()
       }
       b.close()
@@ -97,8 +97,8 @@ object SortDataGenerator {
 
   def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, numEbsVols: Int = 8): Unit = {
 
-    val sizeInBytes = sizeInGB * 1000 * 1000 * 1000
-    val numRecords = (sizeInBytes / 100).toLong
+    val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
+    val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val hosts = Sort.readSlaves()
