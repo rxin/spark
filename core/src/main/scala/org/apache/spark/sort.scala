@@ -27,8 +27,52 @@ import scala.reflect.ClassTag
 
 object Sort {
   def main(args: Array[String]): Unit = {
-    val numParts = args(0).toInt
+    val sizeInGB = args(0).toInt
+    val numParts = args(1).toInt
+    val numEbsVols = 8
+    val hosts = Sort.readSlaves()
 
+    val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
+    val numRecords = sizeInBytes / 100
+    val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
+
+    val sc = new SparkContext(new SparkConf())
+    val input = new NodeLocalRDD[(Array[Byte], Array[Byte])](sc, numParts, hosts) {
+      override def compute(split: Partition, context: TaskContext) = {
+        val part = split.index
+        val host = split.asInstanceOf[NodeLocalRDDPartition].node
+
+        val start = recordsPerPartition * part
+        val volIndex = part % numEbsVols
+
+        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g"
+        val outputFile = s"$baseFolder/part$part.dat"
+
+        readPartFile(outputFile)
+      }
+    }
+
+    println("total number of records: " + input.count())
+  }
+
+  def readPartFile(file: String): Iterator[(Array[Byte], Array[Byte])] = {
+    val fileSize = new File(file).length
+    assert(fileSize % 100 == 0)
+    val numRecords = fileSize / 100
+
+    val is = new BufferedInputStream(new FileInputStream(file), 4 * 1024 * 1024)
+    new Iterator[(Array[Byte], Array[Byte])] {
+      private[this] var pos = 0
+      override def hasNext: Boolean = pos < numRecords
+      override def next(): (Array[Byte], Array[Byte]) = {
+        pos += 1
+        val key = new Array[Byte](10)
+        val value = new Array[Byte](90)
+        is.read(key)
+        is.read(value)
+        (key, value)
+      }
+    }
   }
 
   def readSlaves(): Array[String] = {
@@ -130,7 +174,7 @@ object SortDataGenerator {
     val checksumFile = s"/root/sort-${sizeInGB}g.sum"
     println(s"checksum output: $checksumFile")
     val writer = new java.io.PrintWriter(new File(checksumFile))
-    output.foreach {  case (host, part, outputFile, stdout, stderr) =>
+    output.foreach {  case (host, part, outputFile, stdout, stderr: String) =>
       writer.write(stderr)
     }
     writer.close()
