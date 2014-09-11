@@ -29,40 +29,46 @@ object Sort {
   def main(args: Array[String]): Unit = {
     val numParts = args(0).toInt
 
-
-
   }
 
   def readSlaves(): Array[String] = {
-    scala.io.Source.fromFile("/root/spark-ec2/slaves").getLines().toArray
+    scala.io.Source.fromFile("/root/hosts.txt").getLines().toArray
   }
+}
 
-  def gatherHostnames(sc: SparkContext): Array[String] = {
-    sc.parallelize(1 to 1000, 1000).mapPartitions { iter =>
+
+object SortGenerateHosts {
+  def main(args: Array[String]): Unit = {
+    val sc = new SparkContext(new SparkConf())
+    val hosts = sc.parallelize(1 to 1000, 1000).mapPartitions { iter =>
       val host = "hostname".!!
       Iterator(host.trim)
-    }.collect().distinct.toArray
+    }.collect().distinct.sorted.toArray
+
+    val writer = new java.io.PrintWriter(new File("/root/hosts.txt"))
+    hosts.foreach { host => writer.write(host + "\n") }
+    writer.close()
+    println(s"written ${hosts.size} hosts to /root/hosts.txt")
   }
 }
 
 
 object SortDataGenerator {
 
-  var sc: SparkContext = null
-
   def main(args: Array[String]): Unit = {
-    val sizeInTB = args(0).toInt
+    val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    sc = new SparkContext(new SparkConf())
+    val sc = new SparkContext(new SparkConf())
+    genSort(sc, sizeInGB, numParts)
   }
 
-  def genSort(sizeInGB: Int, numParts: Int, numEbsVols: Int = 8): Unit = {
+  def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, numEbsVols: Int = 8): Unit = {
 
     val sizeInBytes = sizeInGB * 1000 * 1000 * 1000
     val numRecords = (sizeInBytes / 100).toLong
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
-    val hosts = Sort.gatherHostnames(sc)
+    val hosts = Sort.readSlaves()
 
     val output = new NodeLocalRDD[(String, Int, String, String)](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
@@ -90,18 +96,6 @@ object SortDataGenerator {
       println(s"$part\t$host\t$outputFile\t$result")
     }
   }  // end of genSort
-
-  def removeOldFiles(numEbsVols: Int = 8): Unit = {
-    import scala.sys.process._
-    sc.parallelize(1 to 1000, 1000).mapPartitions { iter =>
-      for (i <- 0 until numEbsVols) {
-        val cmd = s"rm -rf /vol$i/sort*"
-        println(cmd)
-        cmd.!!
-      }
-      Iterator.empty
-    }.count()
-  }
 }
 
 
@@ -119,4 +113,3 @@ abstract class NodeLocalRDD[T: ClassTag](sc: SparkContext, numParts: Int, hosts:
     new NodeLocalRDDPartition(i, hosts(i % hosts.length))
   }
 }
-
