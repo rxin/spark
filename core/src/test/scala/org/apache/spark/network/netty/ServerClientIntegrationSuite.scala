@@ -27,6 +27,9 @@ import scala.collection.JavaConversions._
 import io.netty.buffer.Unpooled
 
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import org.scalatest.concurrent.Eventually._
+import org.scalatest.time.Span
+import org.scalatest.time.Seconds
 
 import org.apache.spark.SparkConf
 import org.apache.spark.network._
@@ -103,7 +106,8 @@ class ServerClientIntegrationSuite extends FunSuite with BeforeAndAfterAll {
     client.fetchBlocks(
       blockIds,
       new BlockFetchingListener {
-        override def onBlockFetchFailure(exception: Throwable): Unit = {
+        override def onBlockFetchFailure(blockId: String, exception: Throwable): Unit = {
+          errorBlockIds.add(blockId)
           sem.release()
         }
 
@@ -135,7 +139,7 @@ class ServerClientIntegrationSuite extends FunSuite with BeforeAndAfterAll {
     assert(failBlockIds.isEmpty)
   }
 
-  ignore("fetch a non-existent block") {
+  test("fetch a non-existent block") {
     val (blockIds, buffers, failBlockIds) = fetchBlocks(Seq("random-block"))
     assert(blockIds.isEmpty)
     assert(buffers.isEmpty)
@@ -149,10 +153,16 @@ class ServerClientIntegrationSuite extends FunSuite with BeforeAndAfterAll {
     assert(failBlockIds.isEmpty)
   }
 
-  ignore("fetch both ByteBuffer block and a non-existent block") {
+  test("fetch both ByteBuffer block and a non-existent block") {
     val (blockIds, buffers, failBlockIds) = fetchBlocks(Seq(bufferBlockId, "random-block"))
     assert(blockIds === Set(bufferBlockId))
     assert(buffers.map(_.convertToNetty()) === Set(byteBufferBlockReference))
     assert(failBlockIds === Set("random-block"))
+  }
+
+  test("shutting down server should also close client") {
+    val client = clientFactory.createClient(server.hostName, server.port)
+    server.stop()
+    eventually(timeout(Span(5, Seconds))) { assert(!client.isActive) }
   }
 }
