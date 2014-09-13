@@ -18,11 +18,13 @@
 package org.apache.spark
 
 import java.io._
-import scala.sys.process._
-
-import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
+import scala.sys.process._
+
+import com.google.common.primitives.Longs
+
+import org.apache.spark.rdd.{ShuffledRDD, RDD}
 
 
 object Sort {
@@ -30,14 +32,36 @@ object Sort {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
     val numEbsVols = 8
+
+    val sc = new SparkContext(new SparkConf())
+    val input = createInputRDD(sc, sizeInGB, numParts, numEbsVols)
+    val partitioner = new TeraSortPartitioner(numParts)
+
     val hosts = Sort.readSlaves()
+
+    val sorted = new ShuffledRDD(input, partitioner).setKeyOrdering(null)
+
+    sorted.mapPartitionsWithIndex { (part, iter) =>
+      val volIndex = part % numEbsVols
+      val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-out"
+      val outputFile = s"$baseFolder/part$part.dat"
+
+      writePartFile(outputFile, iter)
+      Iterator(1)
+    }.foreach(_ => Unit)
+
+    println("total number of records: " + input.count())
+  }
+
+  def createInputRDD(sc: SparkContext, sizeInGB: Int, numParts: Int, numEbsVols: Int)
+    : RDD[(Array[Byte], Array[Byte])] = {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
-    val sc = new SparkContext(new SparkConf())
-    val input = new NodeLocalRDD[(Array[Byte], Array[Byte])](sc, numParts, hosts) {
+    val hosts = Sort.readSlaves()
+    new NodeLocalRDD[(Array[Byte], Array[Byte])](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
         val host = split.asInstanceOf[NodeLocalRDDPartition].node
@@ -51,8 +75,6 @@ object Sort {
         readPartFile(outputFile)
       }
     }
-
-    println("total number of records: " + input.count())
   }
 
   def readPartFile(file: String): Iterator[(Array[Byte], Array[Byte])] = {
@@ -73,6 +95,17 @@ object Sort {
         (key, value)
       }
     }
+  }
+
+  def writePartFile(file: String, iter: Iterator[(Array[Byte], Array[Byte])]): Unit = {
+    val os = new BufferedOutputStream(new FileOutputStream(file), 4 * 1024 * 1024)
+    var record: (Array[Byte], Array[Byte]) = null
+    while (iter.hasNext) {
+      record = iter.next()
+      os.write(record._1)
+      os.write(record._2)
+    }
+    os.close()
   }
 
   def readSlaves(): Array[String] = {
@@ -195,4 +228,28 @@ abstract class NodeLocalRDD[T: ClassTag](sc: SparkContext, numParts: Int, hosts:
   override protected def getPartitions: Array[Partition] = Array.tabulate(numParts) { i =>
     new NodeLocalRDDPartition(i, hosts(i % hosts.length))
   }
+}
+
+
+/**
+ * Partitioner for terasort. It uses the first seven bytes of the byte array to partition
+ * the key space evenly.
+ */
+case class TeraSortPartitioner(numPartitions: Int) extends Partitioner {
+
+  import TeraSortPartitioner._
+
+  val rangePerPart = (max - min) / numPartitions
+
+  override def getPartition(key: Any): Int = {
+    val b = key.asInstanceOf[Array[Byte]]
+    val prefix = Longs.fromBytes(0, b(0), b(1), b(2), b(3), b(4), b(5), b(6))
+    (prefix / rangePerPart).toInt
+  }
+}
+
+
+object TeraSortPartitioner {
+  val min = Longs.fromBytes(0, 0, 0, 0, 0, 0, 0, 0)
+  val max = Longs.fromBytes(0, -1, -1, -1, -1, -1, -1, -1)  // 0xff = -1
 }
