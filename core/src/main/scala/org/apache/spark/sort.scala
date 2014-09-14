@@ -33,8 +33,11 @@ object Sort {
     val numParts = args(1).toInt
     val numEbsVols = 8
 
+    val conf = new SparkConf()
+    val bufSize = conf.getInt("spark.sort.buf.size", 4 * 1024)
+
     val sc = new SparkContext(new SparkConf())
-    val input = createInputRDD(sc, sizeInGB, numParts, numEbsVols)
+    val input = createInputRDD(sc, sizeInGB, numParts, bufSize, numEbsVols)
     val partitioner = new TeraSortPartitioner(numParts)
 
     val hosts = Sort.readSlaves()
@@ -53,7 +56,7 @@ object Sort {
     println("total number of records: " + input.count())
   }
 
-  def createInputRDD(sc: SparkContext, sizeInGB: Int, numParts: Int, numEbsVols: Int)
+  def createInputRDD(sc: SparkContext, sizeInGB: Int, numParts: Int, bufSize: Int, numEbsVols: Int)
     : RDD[(Array[Byte], Array[Byte])] = {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
@@ -72,17 +75,17 @@ object Sort {
         val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g"
         val outputFile = s"$baseFolder/part$part.dat"
 
-        readPartFile(outputFile)
+        readPartFile(outputFile, bufSize)
       }
     }
   }
 
-  def readPartFile(file: String): Iterator[(Array[Byte], Array[Byte])] = {
+  def readPartFile(file: String, bufSize: Int): Iterator[(Array[Byte], Array[Byte])] = {
     val fileSize = new File(file).length
     assert(fileSize % 100 == 0)
     val numRecords = fileSize / 100
 
-    val is = new BufferedInputStream(new FileInputStream(file), 4 * 1024 * 1024)
+    val is = new BufferedInputStream(new FileInputStream(file), bufSize)
     new Iterator[(Array[Byte], Array[Byte])] {
       private[this] var pos = 0
       override def hasNext: Boolean = pos < numRecords
