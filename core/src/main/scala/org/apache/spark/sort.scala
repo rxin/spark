@@ -18,12 +18,12 @@
 package org.apache.spark
 
 import java.io._
+import sun.misc.Unsafe
 
 import scala.reflect.ClassTag
 import scala.sys.process._
 
 import com.google.common.primitives.Longs
-
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
 
 
@@ -42,7 +42,8 @@ object Sort {
 
     val hosts = Sort.readSlaves()
 
-    val sorted = new ShuffledRDD(input, partitioner).setKeyOrdering(null)
+    val sorted = new ShuffledRDD(input, partitioner)
+      .setKeyOrdering(new TeraSortOrdering)
 
     sorted.mapPartitionsWithIndex { (part, iter) =>
       val volIndex = part % numEbsVols
@@ -159,13 +160,6 @@ object SortGenerateHosts {
 }
 
 
-
-object SortDataValidator {
-
-}
-
-
-
 object SortDataGenerator {
 
   def main(args: Array[String]): Unit = {
@@ -255,4 +249,39 @@ case class TeraSortPartitioner(numPartitions: Int) extends Partitioner {
 object TeraSortPartitioner {
   val min = Longs.fromBytes(0, 0, 0, 0, 0, 0, 0, 0)
   val max = Longs.fromBytes(0, -1, -1, -1, -1, -1, -1, -1)  // 0xff = -1
+}
+
+
+/**
+ * Sort ordering for comparing 10-byte arrays.
+ *
+ * http://grepcode.com/file/repo1.maven.org/maven2/com.google.guava/guava/17.0/com/google/common/primitives/UnsignedBytes.java#298
+ */
+class TeraSortOrdering extends Ordering[Array[Byte]] {
+  import TeraSortOrdering._
+
+  override def compare(left: Array[Byte], right: Array[Byte]): Int = {
+    val lw: Long = theUnsafe.getLong(left, BYTE_ARRAY_BASE_OFFSET)
+    val rw: Long = theUnsafe.getLong(right, BYTE_ARRAY_BASE_OFFSET)
+    if (lw != rw) {
+      val n: Int = java.lang.Long.numberOfTrailingZeros(lw ^ rw) & ~0x7
+      (((lw >>> n) & UNSIGNED_MASK) - ((rw >>> n) & UNSIGNED_MASK)).asInstanceOf[Int]
+    } else {
+      // First word not equal. Compare the rest 2 bytes.
+      val diff9 = left(8) - right(8)
+      if (diff9 != 0) {
+        diff9
+      } else {
+        left(9) - right(9)
+      }
+    }
+  }
+}
+
+
+object TeraSortOrdering {
+  private final val MAX_VALUE: Byte = 0xFF.asInstanceOf[Byte]
+  private final val UNSIGNED_MASK: Int = 0xFF
+  private final val theUnsafe: Unsafe = sun.misc.Unsafe.getUnsafe()
+  private final val BYTE_ARRAY_BASE_OFFSET: Int = theUnsafe.arrayBaseOffset(classOf[Array[Byte]])
 }
