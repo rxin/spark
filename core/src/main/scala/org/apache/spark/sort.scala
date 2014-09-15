@@ -34,7 +34,7 @@ object Sort {
     val numEbsVols = 8
 
     val conf = new SparkConf()
-    val bufSize = conf.getInt("spark.sort.buf.size", 4 * 1024)
+    val bufSize = conf.getInt("spark.sort.buf.size", 4 * 1024 * 1024)
 
     val sc = new SparkContext(new SparkConf())
     val input = createInputRDD(sc, sizeInGB, numParts, bufSize, numEbsVols)
