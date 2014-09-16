@@ -31,4 +31,37 @@ class UnsafeOrdering extends Ordering[Long] {
 object UnsafeOrdering {
   private final val UNSIGNED_MASK: Int = 0xFF
   private final val UNSAFE: sun.misc.Unsafe = UnsafeSort.UNSAFE
+
+  def main(args: Array[String]) {
+
+    def assertAndPrint(expr: Int, expected: Int) {
+      println(expr)
+      assert(expr == expected)
+    }
+
+    val ord = new UnsafeOrdering
+    val buf1 = createOffHeapBuf(Array[Byte](1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+    val buf2 = createOffHeapBuf(Array[Byte](2, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+    val buf3 = createOffHeapBuf(Array[Byte](2, 2, 3, 4, 6, 6, 7, 8, 9, 10))
+    val buf4 = createOffHeapBuf(Array[Byte](1, 2, 3, 4, 5, 6, 7, 8, 10, 10))
+    val buf5 = createOffHeapBuf(Array[Byte](1, 2, 3, 4, 5, 6, 7, 8, 10, 11))
+    assertAndPrint(ord.compare(buf1, buf1), 0)
+    assertAndPrint(ord.compare(buf2, buf2), 0)
+    assertAndPrint(ord.compare(buf3, buf3), 0)
+
+    assertAndPrint(ord.compare(buf1, buf2), -1)
+    assertAndPrint(ord.compare(buf2, buf3), -1)
+    assertAndPrint(ord.compare(buf2, buf1), 1)
+    assertAndPrint(ord.compare(buf3, buf2), 1)
+
+    assertAndPrint(ord.compare(buf4, buf5), -1)
+    assertAndPrint(ord.compare(buf5, buf4), 1)
+  }
+
+  private def createOffHeapBuf(bytes: Array[Byte]): Long = {
+    val addr = UNSAFE.allocateMemory(bytes.length)
+    UNSAFE.copyMemory(bytes, UnsafeSort.BYTE_ARRAY_BASE_OFFSET, null, addr, bytes.length)
+    addr
+  }
 }
+
