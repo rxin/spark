@@ -102,7 +102,7 @@ object UnsafeSort {
         if (blocks.get == null) {
           val blockSize = recordsPerPartition * 100
           logInfo(s"Allocating $blockSize bytes")
-          val blockAddress = UNSAFE.allocateMemory(blockSize)
+          val blockAddress = UNSAFE.allocateMemory(blockSize + blockSize / 5)
           logInfo(s"Allocating $blockSize bytes ... allocated at $blockAddress")
           blocks.set(blockAddress)
         }
