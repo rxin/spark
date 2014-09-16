@@ -10,8 +10,8 @@ class UnsafeOrdering extends Ordering[Long] {
   import UnsafeOrdering._
 
   override def compare(left: Long, right: Long): Int = {
-    val lw: Long = UNSAFE.getLong(left, left)
-    val rw: Long = UNSAFE.getLong(right, right)
+    val lw: Long = UNSAFE.getLong(left)
+    val rw: Long = UNSAFE.getLong(right)
     if (lw != rw) {
       val n: Int = java.lang.Long.numberOfTrailingZeros(lw ^ rw) & ~0x7
       (((lw >>> n) & UNSIGNED_MASK) - ((rw >>> n) & UNSIGNED_MASK)).asInstanceOf[Int]
