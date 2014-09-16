@@ -7,12 +7,6 @@ import org.apache.spark.{TaskContext, Partition, SparkContext, SparkConf}
 
 object Sort {
 
-  final val theUnsafe: sun.misc.Unsafe = {
-    val unsafeField = classOf[sun.misc.Unsafe].getDeclaredField("theUnsafe")
-    unsafeField.setAccessible(true)
-    unsafeField.get().asInstanceOf[sun.misc.Unsafe]
-  }
-
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
@@ -44,57 +38,6 @@ object Sort {
     }.foreach(_ => Unit)
 
     println("total number of records: " + input.count())
-  }
-
-  /** A thread local variable storing a pointer to the buffer allocated off-heap. */
-  val buffers = new ThreadLocal[java.lang.Long]
-
-  def createInputRDDUnsafe(
-      sc: SparkContext, sizeInGB: Int, numParts: Int, bufSize: Int, numEbsVols: Int)
-    : RDD[(Array[Byte], Array[Byte])] = {
-
-    val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
-    val numRecords = sizeInBytes / 100
-    val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
-
-    val hosts = Sort.readSlaves()
-    new NodeLocalRDD[(Array[Byte], Array[Byte])](sc, numParts, hosts) {
-      override def compute(split: Partition, context: TaskContext) = {
-        val part = split.index
-        val host = split.asInstanceOf[NodeLocalRDDPartition].node
-
-        val start = recordsPerPartition * part
-        val volIndex = part % numEbsVols
-
-        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
-        val outputFile = s"$baseFolder/part$part.dat"
-
-        val fileSize = new File(outputFile).length
-        assert(fileSize % 100 == 0)
-
-        if (buffers.get == null) {
-          val buf = theUnsafe.allocateMemory(recordsPerPartition * 100)
-          buffers.set(buf)
-        }
-
-        val buf = buffers.get
-        val numRecords = fileSize / 100
-
-        val is = new BufferedInputStream(new FileInputStream(outputFile), bufSize)
-        new Iterator[(Array[Byte], Array[Byte])] {
-          private[this] var pos = 0
-          override def hasNext: Boolean = pos < numRecords
-          override def next(): (Array[Byte], Array[Byte]) = {
-            pos += 1
-            val key = new Array[Byte](10)
-            val value = new Array[Byte](90)
-            is.read(key)
-            is.read(value)
-            (key, value)
-          }
-        }
-      }
-    }
   }
 
   def createInputRDD(sc: SparkContext, sizeInGB: Int, numParts: Int, bufSize: Int, numEbsVols: Int)
