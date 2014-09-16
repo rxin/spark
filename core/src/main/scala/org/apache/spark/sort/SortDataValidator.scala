@@ -45,7 +45,7 @@ object SortDataValidator {
         }
       }.collect()
 
-    output.foreach(println)
+    output.sortBy(_._1).foreach(println)
 
     val distinctParts = output.map(_._1).distinct.size
     if (output.size != distinctParts) {
