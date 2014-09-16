@@ -123,10 +123,9 @@ object UnsafeSort {
           }
           override def next() = {
             is.read(buf)
-            val startAddr = pos
-            UNSAFE.copyMemory(buf, arrOffset, null, startAddr, 100)
+            UNSAFE.copyMemory(buf, arrOffset, null, pos, 100)
+            tuple._1 = pos
             pos += 100
-            tuple._1 = startAddr
             tuple
           }
         }
