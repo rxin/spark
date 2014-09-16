@@ -115,11 +115,11 @@ object UnsafeSort {
           private[this] val is = new BufferedInputStream(new FileInputStream(outputFile), bufSize)
           private[this] val tuple = new MutablePair[Long, Long]
           override def hasNext: Boolean = {
-            val end = pos < endPos
-            if (end) {
+            val more = pos < endPos
+            if (!more) {
               is.close()
             }
-            end
+            more
           }
           override def next() = {
             is.read(buf)
