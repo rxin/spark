@@ -47,7 +47,7 @@ object Sort {
 
     sorted.mapPartitionsWithIndex { (part, iter) =>
       val volIndex = part % numEbsVols
-      val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-out"
+      val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
       val outputFile = s"$baseFolder/part$part.dat"
 
       writePartFile(outputFile, iter)
@@ -73,7 +73,7 @@ object Sort {
         val start = recordsPerPartition * part
         val volIndex = part % numEbsVols
 
-        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g"
+        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
         val outputFile = s"$baseFolder/part$part.dat"
 
         readPartFile(outputFile, bufSize)
@@ -185,7 +185,7 @@ object SortDataGenerator {
         val start = recordsPerPartition * part
         val volIndex = part % numEbsVols
 
-        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g"
+        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
         if (!new File(baseFolder).exists()) {
           new File(baseFolder).mkdirs()
         }
