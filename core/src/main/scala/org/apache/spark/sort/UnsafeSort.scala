@@ -70,11 +70,6 @@ object UnsafeSort {
   /** A thread local variable storing a pointer to the buffer allocated off-heap. */
   val blocks = new ThreadLocal[java.lang.Long]
 
-  /** A offset, used by the deserializer to store data ... */
-  val blockOffset = new ThreadLocal[MutableLong] {
-    override def initialValue = new MutableLong(0L)
-  }
-
   def createInputRDDUnsafe(
       sc: SparkContext, sizeInGB: Int, numParts: Int, bufSize: Int, numEbsVols: Int)
   : RDD[(Long, Long)] = {
