@@ -1,6 +1,6 @@
 package org.apache.spark.sort
 
-import java.io.{OutputStream, InputStream}
+import java.io.{EOFException, OutputStream, InputStream}
 import java.nio.ByteBuffer
 
 import scala.reflect.ClassTag
@@ -67,7 +67,11 @@ final class UnsafeDeserializationStream(s: InputStream, ser: UnsafeSerializer)
   override def readObject[T: ClassTag](): T = {
     // Read 100 bytes into the buffer, and then copy that into the off-heap block.
     // Return the address of the 100-byte in the off heap block.
-    s.read(buf)
+    val read = s.read(buf)
+    if (read < 0) {
+      throw new EOFException
+    }
+    assert(read == 100)
     val addr = blockAddress + ser.offset
     UnsafeSort.UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, addr, 100)
     ser.offset += 100
