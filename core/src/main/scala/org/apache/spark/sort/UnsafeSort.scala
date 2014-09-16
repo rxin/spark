@@ -2,6 +2,7 @@ package org.apache.spark.sort
 
 import java.io._
 
+import org.apache.spark.util.MutablePair
 import org.apache.spark.{SparkConf, TaskContext, Partition, SparkContext}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
 import org.apache.spark.SparkContext._
@@ -17,10 +18,11 @@ class MutableLong(var value: Long)
  */
 object UnsafeSort {
 
+  val NUM_EBS = 8
+
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    val numEbsVols = 8
 
     val conf = new SparkConf()
     val bufSize = conf.getInt("spark.sort.buf.size", 4 * 1024 * 1024)
@@ -30,7 +32,7 @@ object UnsafeSort {
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val sc = new SparkContext(new SparkConf())
-    val input = createInputRDDUnsafe(sc, sizeInGB, numParts, bufSize, numEbsVols)
+    val input = createInputRDDUnsafe(sc, sizeInGB, numParts, bufSize)
 
     val hosts = Sort.readSlaves()
 
@@ -39,7 +41,7 @@ object UnsafeSort {
       .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
     val recordsAfterSort = sorted.mapPartitionsWithIndex { (part, iter) =>
-      val volIndex = part % numEbsVols
+      val volIndex = part % NUM_EBS
       val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
       if (!new File(baseFolder).exists()) {
         new File(baseFolder).mkdirs()
@@ -75,22 +77,21 @@ object UnsafeSort {
   /** A thread local variable storing a pointer to the buffer allocated off-heap. */
   val blocks = new ThreadLocal[java.lang.Long]
 
-  def createInputRDDUnsafe(
-      sc: SparkContext, sizeInGB: Int, numParts: Int, bufSize: Int, numEbsVols: Int)
-  : RDD[(Long, Long)] = {
+  def createInputRDDUnsafe(sc: SparkContext, sizeInGB: Int, numParts: Int, bufSize: Int)
+    : RDD[MutablePair[Long, Long]] = {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val hosts = Sort.readSlaves()
-    new NodeLocalRDD[(Long, Long)](sc, numParts, hosts) {
+    new NodeLocalRDD[MutablePair[Long, Long]](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
         val host = split.asInstanceOf[NodeLocalRDDPartition].node
 
         val start = recordsPerPartition * part
-        val volIndex = part % numEbsVols
+        val volIndex = part % NUM_EBS
 
         val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
         val outputFile = s"$baseFolder/part$part.dat"
@@ -106,25 +107,27 @@ object UnsafeSort {
           blocks.set(blockAddress)
         }
 
-        val blockAddress: Long = blocks.get.longValue()
-        val numRecords = fileSize / 100
-
-        val arrOffset = BYTE_ARRAY_BASE_OFFSET
-        val buf = new Array[Byte](100)
-        val is = new BufferedInputStream(new FileInputStream(outputFile), bufSize)
-
-        new Iterator[(Long, Long)] {
-          private[this] var pos: Long = 0
+        new Iterator[MutablePair[Long, Long]] {
+          private[this] var pos: Long = blocks.get.longValue()
+          private[this] val endPos: Long = pos + fileSize
+          private[this] val arrOffset = BYTE_ARRAY_BASE_OFFSET
+          private[this] val buf = new Array[Byte](100)
+          private[this] val is = new BufferedInputStream(new FileInputStream(outputFile), bufSize)
+          private[this] val tuple = new MutablePair[Long, Long]
           override def hasNext: Boolean = {
-            val end = pos < numRecords
+            val end = pos < endPos
+            if (end) {
+              is.close()
+            }
             end
           }
-          override def next(): (Long, Long) = {
-            pos += 1
+          override def next() = {
             is.read(buf)
-            val startAddr = blockAddress + pos * 100
+            val startAddr = pos
             UNSAFE.copyMemory(buf, arrOffset, null, startAddr, 100)
-            (startAddr, 0)
+            pos += 100
+            tuple._1 = startAddr
+            tuple
           }
         }
       }
