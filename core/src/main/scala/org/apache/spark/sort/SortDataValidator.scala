@@ -43,7 +43,7 @@ object SortDataValidator {
             buf
           }
 
-          val partIndex = "(\\d+)\\.dat".r.findFirstIn(outputFile).get.toInt
+          val partIndex = "(\\d+)\\.dat".r.findFirstIn(outputFile).get.replace(".dat", "").toInt
 
           (partIndex, stdout, stderr, checksumData)
         }
