@@ -62,7 +62,7 @@ final class UnsafeDeserializationStream(s: InputStream, ser: UnsafeSerializer)
 
   private[this] val buf = new Array[Byte](100)
   private[this] val BYTE_ARRAY_BASE_OFFSET: Long = UnsafeSort.BYTE_ARRAY_BASE_OFFSET
-  private[this] val blockAddress = UnsafeSort.blocks.get().toLong
+  private[this] val blockAddress = UnsafeSort.blocks.get().longValue()
 
   override def readObject[T: ClassTag](): T = {
     // Read 100 bytes into the buffer, and then copy that into the off-heap block.

@@ -5,10 +5,6 @@ import java.io._
 import org.apache.spark.util.MutablePair
 import org.apache.spark.{SparkConf, TaskContext, Partition, SparkContext}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
-import org.apache.spark.SparkContext._
-
-
-class MutableLong(var value: Long)
 
 
 /**
@@ -40,7 +36,7 @@ object UnsafeSort {
       .setKeyOrdering(new UnsafeOrdering)
       .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
-    val recordsAfterSort = sorted.mapPartitionsWithIndex { (part, iter) =>
+    val recordsAfterSort: Long = sorted.mapPartitionsWithIndex { (part, iter) =>
       val volIndex = part % NUM_EBS
       val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
       if (!new File(baseFolder).exists()) {
@@ -61,7 +57,7 @@ object UnsafeSort {
       }
       os.close()
       Iterator(count)
-    }.sum()
+    }.reduce(_ + _)
 
     println("total number of records: " + recordsAfterSort)
   }
@@ -101,14 +97,16 @@ object UnsafeSort {
 
         if (blocks.get == null) {
           val blockSize = recordsPerPartition * 100
-          logInfo(s"Allocating $blockSize bytes")
-          val blockAddress = UNSAFE.allocateMemory(blockSize + blockSize / 5)
-          logInfo(s"Allocating $blockSize bytes ... allocated at $blockAddress")
+          // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
+          val toAlloc = blockSize + blockSize / 10
+          logInfo(s"Allocating $toAlloc bytes")
+          val blockAddress = UNSAFE.allocateMemory(toAlloc)
+          logInfo(s"Allocating $toAlloc bytes ... allocated at $blockAddress")
           blocks.set(blockAddress)
         }
 
         new Iterator[MutablePair[Long, Long]] {
-          private[this] var pos: Long = blocks.get.longValue()
+          private[this] var pos: Long = blocks.get().longValue()
           private[this] val endPos: Long = pos + fileSize
           private[this] val arrOffset = BYTE_ARRAY_BASE_OFFSET
           private[this] val buf = new Array[Byte](100)
