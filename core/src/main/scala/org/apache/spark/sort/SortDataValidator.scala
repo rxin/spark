@@ -30,7 +30,7 @@ object SortDataValidator {
         val start = recordsPerPartition * part
         val volIndex = part % numEbsVols
 
-        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
+        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
         if (!new File(baseFolder).exists()) {
           new File(baseFolder).mkdirs()
         }
