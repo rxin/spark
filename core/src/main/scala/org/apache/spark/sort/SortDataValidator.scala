@@ -24,7 +24,7 @@ object SortDataValidator {
     val output: Array[(Int, String, String)] =
       sc.parallelize(1 to hosts.length, hosts.length).mapPartitions { iter =>
         (0 until numEBS).iterator.flatMap { ebs =>
-          val host = "hostname".!!
+          val host = "hostname".!!.trim
 
           val baseFolder = new File(s"/vol$ebs/sort-${sizeInGB}g-$numParts-out")
           val files: Array[File] = baseFolder.listFiles(new FilenameFilter {
