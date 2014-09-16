@@ -21,8 +21,8 @@ object SortDataValidator {
     val hosts = Sort.readSlaves()
     val numEBS = UnsafeSort.NUM_EBS
 
-    val output: Array[(Int, String, String)] =
-      sc.parallelize(1 to hosts.length, hosts.length).mapPartitions { iter =>
+    val output: Array[(Int, String, String)] = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
+      override def compute(split: Partition, context: TaskContext) = {
         (0 until numEBS).iterator.flatMap { ebs =>
           val host = "hostname".!!.trim
 
@@ -43,7 +43,8 @@ object SortDataValidator {
             Seq.empty[(Int, String, String)]
           }
         }
-      }.collect()
+      }
+    }.collect()
 
     output.sorted.foreach(println)
 
