@@ -68,9 +68,10 @@ final class UnsafeDeserializationStream(s: InputStream, ser: UnsafeSerializer)
     // Read 100 bytes into the buffer, and then copy that into the off-heap block.
     // Return the address of the 100-byte in the off heap block.
     s.read(buf)
-    UnsafeSort.UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, blockAddress + ser.offset, 100)
+    val addr = blockAddress + ser.offset
+    UnsafeSort.UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, addr, 100)
     ser.offset += 100
-    (blockAddress + ser.offset, 0L).asInstanceOf[T]
+    (addr, 0L).asInstanceOf[T]
   }
 
   override def close(): Unit = s.close()
