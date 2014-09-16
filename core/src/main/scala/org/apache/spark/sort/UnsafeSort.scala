@@ -1,9 +1,10 @@
 package org.apache.spark.sort
 
-import java.io.{FileInputStream, BufferedInputStream, File}
+import java.io._
 
-import org.apache.spark.{TaskContext, Partition, SparkContext}
-import org.apache.spark.rdd.RDD
+import org.apache.spark.{SparkConf, TaskContext, Partition, SparkContext}
+import org.apache.spark.rdd.{ShuffledRDD, RDD}
+import org.apache.spark.SparkContext._
 
 
 class MutableLong(var value: Long)
@@ -11,8 +12,51 @@ class MutableLong(var value: Long)
 
 /**
  * A version of the sort code that uses Unsafe to allocate off-heap blocks.
+ *
+ * See also [[UnsafeSerializer]] and [[UnsafeOrdering]].
  */
 object UnsafeSort {
+
+  def main(args: Array[String]): Unit = {
+    val sizeInGB = args(0).toInt
+    val numParts = args(1).toInt
+    val numEbsVols = 8
+
+    val conf = new SparkConf()
+    val bufSize = conf.getInt("spark.sort.buf.size", 4 * 1024 * 1024)
+
+    val sc = new SparkContext(new SparkConf())
+    val input = createInputRDDUnsafe(sc, sizeInGB, numParts, bufSize, numEbsVols)
+    val partitioner = new TeraSortPartitioner(numParts)
+
+    val hosts = Sort.readSlaves()
+
+    val sorted = new ShuffledRDD(input, partitioner).setKeyOrdering(new UnsafeOrdering)
+
+    val recordsAfterSort = sorted.mapPartitionsWithIndex { (part, iter) =>
+      val volIndex = part % numEbsVols
+      val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
+      if (!new File(baseFolder).exists()) {
+        new File(baseFolder).mkdirs()
+      }
+
+      val outputFile = s"$baseFolder/part$part.dat"
+
+      val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
+      val buf = new Array[Byte](100)
+      var count = 0
+      while (iter.hasNext) {
+        val addr = iter.next()._1
+        UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
+        os.write(buf)
+        count += 1
+      }
+      os.close()
+      Iterator(count)
+    }.sum()
+
+    println("total number of records: " + recordsAfterSort)
+  }
 
   final val UNSAFE: sun.misc.Unsafe = {
     val unsafeField = classOf[sun.misc.Unsafe].getDeclaredField("theUnsafe")

@@ -6,8 +6,8 @@ package org.apache.spark.sort
  *
  * http://grepcode.com/file/repo1.maven.org/maven2/com.google.guava/guava/17.0/com/google/common/primitives/UnsignedBytes.java#298
  */
-class UnsafeTeraSortOrdering extends Ordering[Long] {
-  import UnsafeTeraSortOrdering._
+class UnsafeOrdering extends Ordering[Long] {
+  import UnsafeOrdering._
 
   override def compare(left: Long, right: Long): Int = {
     val lw: Long = UNSAFE.getLong(left, left)
@@ -28,7 +28,7 @@ class UnsafeTeraSortOrdering extends Ordering[Long] {
 }
 
 
-object UnsafeTeraSortOrdering {
+object UnsafeOrdering {
   private final val UNSIGNED_MASK: Int = 0xFF
   private final val UNSAFE: sun.misc.Unsafe = UnsafeSort.UNSAFE
 }

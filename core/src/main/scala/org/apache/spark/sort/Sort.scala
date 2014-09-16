@@ -4,6 +4,8 @@ import java.io._
 
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.{TaskContext, Partition, SparkContext, SparkConf}
+import org.apache.spark.SparkContext._
+
 
 object Sort {
 
@@ -24,7 +26,7 @@ object Sort {
     val sorted = new ShuffledRDD(input, partitioner)
       .setKeyOrdering(new TeraSortOrdering)
 
-    sorted.mapPartitionsWithIndex { (part, iter) =>
+    val recordsAfterSort = sorted.mapPartitionsWithIndex { (part, iter) =>
       val volIndex = part % numEbsVols
       val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
       if (!new File(baseFolder).exists()) {
@@ -32,12 +34,12 @@ object Sort {
       }
 
       val outputFile = s"$baseFolder/part$part.dat"
+      val count = writePartFile(outputFile, iter)
 
-      writePartFile(outputFile, iter)
-      Iterator(1)
-    }.foreach(_ => Unit)
+      Iterator(count)
+    }.sum()
 
-    println("total number of records: " + input.count())
+    println("total number of records: " + recordsAfterSort)
   }
 
   def createInputRDD(sc: SparkContext, sizeInGB: Int, numParts: Int, bufSize: Int, numEbsVols: Int)
@@ -84,15 +86,18 @@ object Sort {
     }
   }
 
-  def writePartFile(file: String, iter: Iterator[(Array[Byte], Array[Byte])]): Unit = {
+  def writePartFile(file: String, iter: Iterator[(Array[Byte], Array[Byte])]): Long = {
     val os = new BufferedOutputStream(new FileOutputStream(file), 4 * 1024 * 1024)
     var record: (Array[Byte], Array[Byte]) = null
+    var count: Long = 0
     while (iter.hasNext) {
       record = iter.next()
       os.write(record._1)
       os.write(record._2)
+      count += 1
     }
     os.close()
+    count
   }
 
   def readSlaves(): Array[String] = {
