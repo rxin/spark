@@ -25,13 +25,18 @@ object UnsafeSort {
     val conf = new SparkConf()
     val bufSize = conf.getInt("spark.sort.buf.size", 4 * 1024 * 1024)
 
+    val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
+    val numRecords = sizeInBytes / 100
+    val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
+
     val sc = new SparkContext(new SparkConf())
     val input = createInputRDDUnsafe(sc, sizeInGB, numParts, bufSize, numEbsVols)
-    val partitioner = new TeraSortPartitioner(numParts)
 
     val hosts = Sort.readSlaves()
 
-    val sorted = new ShuffledRDD(input, partitioner).setKeyOrdering(new UnsafeOrdering)
+    val sorted = new ShuffledRDD(input, new TeraSortPartitioner(numParts))
+      .setKeyOrdering(new UnsafeOrdering)
+      .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
     val recordsAfterSort = sorted.mapPartitionsWithIndex { (part, iter) =>
       val volIndex = part % numEbsVols

@@ -10,23 +10,23 @@ import org.apache.spark.serializer._
 
 final class UnsafeSerializer(recordsPerPartition: Long) extends Serializer with Serializable {
 
-  private[this] var offset = 0L
+  var offset = 0L
 
   /** Creates a new [[SerializerInstance]]. */
   override def newInstance(): SerializerInstance = {
-    offset += recordsPerPartition
-    new UnsafeSerializerInstance(offset)
+    val inst = new UnsafeSerializerInstance(this)
+    inst
   }
 }
 
 
-final class UnsafeSerializerInstance(offset: Long) extends SerializerInstance {
+final class UnsafeSerializerInstance(ser: UnsafeSerializer) extends SerializerInstance {
   override def serializeStream(s: OutputStream): SerializationStream = {
     new UnsafeSerializationStream(s)
   }
 
   override def deserializeStream(s: InputStream): DeserializationStream = {
-    new UnsafeDeserializationStream(s, offset)
+    new UnsafeDeserializationStream(s, ser)
   }
 
   override def serialize[T: ClassTag](t: T): ByteBuffer = ???
@@ -57,21 +57,20 @@ final class UnsafeSerializationStream(s: OutputStream) extends SerializationStre
 }
 
 
-final class UnsafeDeserializationStream(s: InputStream, offset0: Long)
+final class UnsafeDeserializationStream(s: InputStream, ser: UnsafeSerializer)
   extends DeserializationStream {
 
   private[this] val buf = new Array[Byte](100)
   private[this] val BYTE_ARRAY_BASE_OFFSET: Long = UnsafeSort.BYTE_ARRAY_BASE_OFFSET
   private[this] val blockAddress = UnsafeSort.blocks.get().toLong
-  private[this] var offset: Long = blockAddress + offset0
 
   override def readObject[T: ClassTag](): T = {
     // Read 100 bytes into the buffer, and then copy that into the off-heap block.
     // Return the address of the 100-byte in the off heap block.
     s.read(buf)
-    UnsafeSort.UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, offset, 100)
-    offset += 100
-    (offset, 0L).asInstanceOf[T]
+    UnsafeSort.UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, blockAddress + ser.offset, 100)
+    ser.offset += 100
+    (blockAddress + ser.offset, 0L).asInstanceOf[T]
   }
 
   override def close(): Unit = s.close()
