@@ -37,6 +37,7 @@ object SortDataValidator {
             files.iterator.map { file: File =>
               val outputFile = file.getAbsolutePath
               val partIndex = "(\\d+)\\.dat".r.findFirstIn(outputFile).get.replace(".dat", "").toInt
+              println((partIndex, host, outputFile))
               (partIndex, host, outputFile)
             }
           } else {
@@ -51,6 +52,7 @@ object SortDataValidator {
     val distinctParts = output.map(_._1).distinct.size
     if (output.size != distinctParts) {
       println(s"output size ${output.size} != distinct size $distinctParts")
+      System.exit(1)
     }
 
     val outputMap: Map[Int, String] = output.map(t => (t._1, t._3)).toMap
