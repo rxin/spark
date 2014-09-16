@@ -47,7 +47,7 @@ object UnsafeSort {
 
       val outputFile = s"$baseFolder/part$part.dat"
 
-      val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
+      val os = new BufferedOutputStream(new FileOutputStream(outputFile), bufSize)
       val buf = new Array[Byte](100)
       var count = 0
       val arrOffset = BYTE_ARRAY_BASE_OFFSET
