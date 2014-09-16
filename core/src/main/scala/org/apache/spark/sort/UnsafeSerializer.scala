@@ -40,12 +40,13 @@ final class UnsafeSerializerInstance(offset: Long) extends SerializerInstance {
 final class UnsafeSerializationStream(s: OutputStream) extends SerializationStream {
 
   private[this] val buf = new Array[Byte](100)
+  private[this] val BYTE_ARRAY_BASE_OFFSET = UnsafeSort.BYTE_ARRAY_BASE_OFFSET
 
   override def writeObject[T: ClassTag](t: T): SerializationStream = {
     // The record is expected to be (Long, Long), where _1 is the address of the record
     // Copy 100 bytes from the off-heap memory into buf, and write that out.
     val addr: Long = t.asInstanceOf[(Long, Long)]._1
-    UnsafeSort.UNSAFE.copyMemory(null, addr, buf, UnsafeSort.BYTE_ARRAY_BASE_OFFSET, 100)
+    UnsafeSort.UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
     s.write(buf)
     this
   }
@@ -60,6 +61,7 @@ final class UnsafeDeserializationStream(s: InputStream, offset0: Long)
   extends DeserializationStream {
 
   private[this] val buf = new Array[Byte](100)
+  private[this] val BYTE_ARRAY_BASE_OFFSET: Long = UnsafeSort.BYTE_ARRAY_BASE_OFFSET
   private[this] val blockAddress = UnsafeSort.blocks.get().toLong
   private[this] var offset: Long = blockAddress + offset0
 
@@ -67,8 +69,7 @@ final class UnsafeDeserializationStream(s: InputStream, offset0: Long)
     // Read 100 bytes into the buffer, and then copy that into the off-heap block.
     // Return the address of the 100-byte in the off heap block.
     s.read(buf)
-    UnsafeSort.UNSAFE.copyMemory(
-      buf, UnsafeSort.BYTE_ARRAY_BASE_OFFSET, null, offset, 100)
+    UnsafeSort.UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, offset, 100)
     offset += 100
     (offset, 0L).asInstanceOf[T]
   }

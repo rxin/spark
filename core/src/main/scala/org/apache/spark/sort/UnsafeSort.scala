@@ -45,9 +45,10 @@ object UnsafeSort {
       val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
       val buf = new Array[Byte](100)
       var count = 0
+      val arrOffset = BYTE_ARRAY_BASE_OFFSET
       while (iter.hasNext) {
         val addr = iter.next()._1
-        UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
+        UNSAFE.copyMemory(null, addr, buf, arrOffset, 100)
         os.write(buf)
         count += 1
       }
