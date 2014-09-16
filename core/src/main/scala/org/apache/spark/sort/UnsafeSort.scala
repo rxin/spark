@@ -36,7 +36,7 @@ object UnsafeSort {
 
     val hosts = Sort.readSlaves()
 
-    val sorted = new ShuffledRDD(input, new TeraSortPartitioner(numParts))
+    val sorted = new ShuffledRDD(input, new UnsafePartitioner(numParts))
       .setKeyOrdering(new UnsafeOrdering)
       .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
