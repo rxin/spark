@@ -18,7 +18,6 @@
 package org.apache.spark
 
 import java.io._
-import sun.misc.Unsafe
 
 import scala.reflect.ClassTag
 import scala.sys.process._
@@ -282,6 +281,10 @@ class TeraSortOrdering extends Ordering[Array[Byte]] {
 object TeraSortOrdering {
   private final val MAX_VALUE: Byte = 0xFF.asInstanceOf[Byte]
   private final val UNSIGNED_MASK: Int = 0xFF
-  private final val theUnsafe: Unsafe = sun.misc.Unsafe.getUnsafe()
+  private final val theUnsafe: sun.misc.Unsafe = {
+    val unsafeField = classOf[sun.misc.Unsafe].getDeclaredField("theUnsafe")
+    unsafeField.setAccessible(true)
+    unsafeField.get().asInstanceOf[sun.misc.Unsafe]
+  }
   private final val BYTE_ARRAY_BASE_OFFSET: Int = theUnsafe.arrayBaseOffset(classOf[Array[Byte]])
 }

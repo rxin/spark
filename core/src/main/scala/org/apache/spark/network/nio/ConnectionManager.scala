@@ -67,7 +67,7 @@ private[nio] class ConnectionManager(
 
   // default to 30 second timeout waiting for authentication
   private val authTimeout = conf.getInt("spark.core.connection.auth.wait.timeout", 30)
-  private val ackTimeout = conf.getInt("spark.core.connection.ack.wait.timeout", 60)
+  private val ackTimeout = conf.getInt("spark.core.connection.ack.wait.timeout", 300)
 
   private val handleMessageExecutor = new ThreadPoolExecutor(
     conf.getInt("spark.core.connection.handler.threads.min", 20),
