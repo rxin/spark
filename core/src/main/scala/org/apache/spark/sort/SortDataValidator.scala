@@ -57,7 +57,7 @@ object SortDataValidator {
 
     val outputMap: Map[Int, String] = output.map(t => (t._1, t._3)).toMap
     val checksumOut = new NodeLocalRDD[(Int, String, String, String, Array[Byte])](
-      sc, output.size, output.map(_._2).toArray) {
+      sc, output.size, output.sorted.map(_._2).toArray) {
       override def compute(split: Partition, context: TaskContext) = {
         val outputFile = outputMap(split.index)
         val checksumOutput = outputFile.replace(".dat", ".sum")
