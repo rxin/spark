@@ -1,5 +1,7 @@
 package org.apache.spark.sort
 
+import com.google.common.primitives.UnsignedBytes
+
 
 /**
  * Sort ordering for comparing 10-byte arrays for records from an off-heap block.
@@ -45,6 +47,7 @@ object UnsafeOrdering {
     val buf3 = createOffHeapBuf(Array[Byte](2, 2, 3, 4, 6, 6, 7, 8, 9, 10))
     val buf4 = createOffHeapBuf(Array[Byte](1, 2, 3, 4, 5, 6, 7, 8, 10, 10))
     val buf5 = createOffHeapBuf(Array[Byte](1, 2, 3, 4, 5, 6, 7, 8, 10, 11))
+    val buf6 = createOffHeapBuf(Array[Byte](150.toByte, 2, 3, 4, 5, 6, 7, 8, 10, 11))
     assertAndPrint(ord.compare(buf1, buf1), 0)
     assertAndPrint(ord.compare(buf2, buf2), 0)
     assertAndPrint(ord.compare(buf3, buf3), 0)
@@ -56,6 +59,34 @@ object UnsafeOrdering {
 
     assertAndPrint(ord.compare(buf4, buf5), -1)
     assertAndPrint(ord.compare(buf5, buf4), 1)
+
+    assert(ord.compare(buf5, buf6) < 0)
+    assert(ord.compare(buf6, buf5) > 1)
+
+    println("doing random testing")
+
+    for (i <- 1 to 10000000) {
+      val buf1 = createRandomBuffer()
+      val buf2 = createRandomBuffer()
+      val cmp = UnsignedBytes.lexicographicalComparator().compare(buf1, buf2)
+      val got = ord.compare(createOffHeapBuf(buf1), createOffHeapBuf(buf2))
+      if (got != cmp) {
+        println(s"guava output $cmp, while we output $got")
+        println("buf1: " + buf1.map(UnsignedBytes.toString(_)).toSeq)
+        println("buf2: " + buf2.map(UnsignedBytes.toString(_)).toSeq)
+        System.exit(1)
+      } else {
+        println(s"comparison $i passed guava output $cmp, while we output $got ")
+      }
+    }
+  }
+
+  private val rand = new scala.util.Random()
+
+  private def createRandomBuffer(): Array[Byte] = {
+    val a = new Array[Byte](10)
+    rand.nextBytes(a)
+    a
   }
 
   private def createOffHeapBuf(bytes: Array[Byte]): Long = {
