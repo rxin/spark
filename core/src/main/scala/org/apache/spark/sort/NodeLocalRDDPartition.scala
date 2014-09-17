@@ -9,7 +9,8 @@ import org.apache.spark.{Logging, SparkContext, Partition}
 class NodeLocalRDDPartition(val index: Int, val node: String) extends Partition
 
 
-abstract class NodeLocalRDD[T: ClassTag](sc: SparkContext, numParts: Int, hosts: Array[String])
+abstract class NodeLocalRDD[T: ClassTag](
+    sc: SparkContext, numParts: Int, @transient hosts: Array[String])
   extends RDD[T](sc, Nil) with Logging {
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
