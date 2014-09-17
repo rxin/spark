@@ -227,6 +227,7 @@ final class ServerResponseDecoder extends MessageToMessageDecoder[ByteBuf] {
     val decoded = msgId match {
       case 0 =>  // BlockFetchSuccess
         val blockId = ProtocolUtils.readBlockId(in)
+        in.retain()
         new BlockFetchSuccess(blockId, new NettyManagedBuffer(in))
 
       case 1 =>  // BlockFetchFailure
