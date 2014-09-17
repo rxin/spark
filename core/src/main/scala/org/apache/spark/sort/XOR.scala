@@ -2,6 +2,8 @@ package org.apache.spark.sort
 
 import java.io._
 
+import com.google.common.primitives.UnsignedBytes
+
 import scala.sys.process._
 
 import org.apache.spark.{TaskContext, Partition, SparkConf, SparkContext}
@@ -86,8 +88,11 @@ object XOR {
       }
     }.collect()
 
+    val cmp = UnsignedBytes.lexicographicalComparator()
+
     val checksum = new Array[Byte](100)
     var numRecords = 0L
+    var lastMax = new Array[Byte](10)
     checksumOut.foreach { case (part, count, input, min, max) =>
       xor(checksum, input)
       numRecords += count
@@ -95,8 +100,13 @@ object XOR {
       println(s"part $part")
       println(s"min " + min.toSeq)
       println(s"max " + max.toSeq)
+
+      assert(cmp.compare(min, max) < 0, "min >= max")
+      assert(cmp.compare(lastMax, min) < 0, "current partition min < last partition max")
+      lastMax = max
     }
 
+    println("partitions are properly sorted")
     println("num records: " + numRecords)
     println("xor checksum: " + checksum.toSeq)
   }  // end of genSort
