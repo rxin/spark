@@ -23,9 +23,9 @@ object SortDataValidator {
 
     val output: Array[(Int, String, String)] = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
-        (0 until numEBS).iterator.flatMap { ebs =>
-          val host = "hostname".!!.trim
+        val host = "hostname".!!.trim
 
+        (0 until numEBS).iterator.flatMap { ebs =>
           val baseFolder = new File(s"/vol$ebs/sort-${sizeInGB}g-$numParts-out")
           val files: Array[File] = baseFolder.listFiles(new FilenameFilter {
             override def accept(dir: File, filename: String): Boolean = {
