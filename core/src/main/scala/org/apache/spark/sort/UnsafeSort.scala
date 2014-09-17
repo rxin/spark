@@ -55,11 +55,6 @@ object UnsafeSort {
         UNSAFE.copyMemory(null, addr, buf, arrOffset, 100)
         os.write(buf)
         count += 1
-
-        if (count < 10) {
-          println(s"part $part record ${buf.take(10).toSeq} should be in " +
-            partitioner.getPartition(addr))
-        }
       }
       os.close()
       Iterator(count)
