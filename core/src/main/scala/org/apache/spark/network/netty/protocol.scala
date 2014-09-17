@@ -144,7 +144,7 @@ final class ClientRequestDecoder extends MessageToMessageDecoder[ByteBuf] {
       case 0 =>  // BlockFetchRequest
         val numBlocks = in.readInt()
         val blockIds = Seq.fill(numBlocks) { ProtocolUtils.readBlockId(in) }
-        in.release()
+        //in.release()
         BlockFetchRequest(blockIds)
 
       case 1 =>  // BlockUploadRequest
@@ -227,13 +227,13 @@ final class ServerResponseDecoder extends MessageToMessageDecoder[ByteBuf] {
     val decoded = msgId match {
       case 0 =>  // BlockFetchSuccess
         val blockId = ProtocolUtils.readBlockId(in)
+        in.retain()
         new BlockFetchSuccess(blockId, new NettyManagedBuffer(in))
 
       case 1 =>  // BlockFetchFailure
         val blockId = ProtocolUtils.readBlockId(in)
         val errorBytes = new Array[Byte](in.readableBytes())
         in.readBytes(errorBytes)
-        in.release()
         new BlockFetchFailure(blockId, new String(errorBytes))
     }
 
