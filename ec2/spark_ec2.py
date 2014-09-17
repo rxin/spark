@@ -84,7 +84,8 @@ def parse_args():
         help="Availability zone to launch instances in, or 'all' to spread " +
              "slaves across multiple (an additional $0.01/Gb for bandwidth" +
              "between zones applies)")
-    parser.add_option("-a", "--ami", help="Amazon Machine Image ID to use")
+    parser.add_option("-a", "--ami", default="ami-d4248abc",
+        help="Amazon Machine Image ID to use")
     parser.add_option(
         "-v", "--spark-version", default=DEFAULT_SPARK_VERSION,
         help="Version of Spark to use: 'X.Y.Z' or a specific git hash (default: %default)")
