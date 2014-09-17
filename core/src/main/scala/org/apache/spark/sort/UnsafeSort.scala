@@ -32,7 +32,8 @@ object UnsafeSort {
 
     val hosts = Sort.readSlaves()
 
-    val sorted = new ShuffledRDD(input, new UnsafePartitioner(numParts))
+    val partitioner = new UnsafePartitioner(numParts)
+    val sorted = new ShuffledRDD(input, partitioner)
       .setKeyOrdering(new UnsafeOrdering)
       .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
@@ -54,6 +55,11 @@ object UnsafeSort {
         UNSAFE.copyMemory(null, addr, buf, arrOffset, 100)
         os.write(buf)
         count += 1
+
+        if (count < 10) {
+          println(s"part $part record ${buf.take(10).toSeq} should be in " +
+            partitioner.getPartition(addr))
+        }
       }
       os.close()
       Iterator(count)
