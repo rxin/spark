@@ -56,14 +56,17 @@ object XOR {
     }
 
     val outputMap: Map[Int, String] = output.map(t => (t._1, t._3)).toMap
-    val checksumOut = new NodeLocalRDD[(Long, Array[Byte])](
+    val checksumOut = new NodeLocalRDD[(Int, Long, Array[Byte], Array[Byte], Array[Byte])](
       sc, output.size, output.sorted.map(_._2).toArray) {
       override def compute(split: Partition, context: TaskContext) = {
+        val part = split.index
         val file = outputMap(split.index)
 
         val fileSize = new File(file).length
         assert(fileSize % 100 == 0)
         var pos = 0
+        val min = new Array[Byte](10)
+        val max = new Array[Byte](10)
         val is = new BufferedInputStream(new FileInputStream(file), 4 * 1024 * 1024)
         val buf = new Array[Byte](100)
         val checksum = new Array[Byte](100)
@@ -71,17 +74,27 @@ object XOR {
           assert(is.read(buf) == 100)
           xor(checksum, buf)
           pos += 100
+
+          if (pos == 100) {
+            System.arraycopy(buf, 0, min, 0, 10)
+          } else if (pos == fileSize) {
+            System.arraycopy(buf, 0, max, 0, 10)
+          }
         }
         is.close()
-        Iterator((fileSize / 100, checksum))
+        Iterator((part, fileSize / 100, checksum, min, max))
       }
     }.collect()
 
     val checksum = new Array[Byte](100)
     var numRecords = 0L
-    checksumOut.foreach { case (count, input) =>
+    checksumOut.foreach { case (part, count, input, min, max) =>
       xor(checksum, input)
       numRecords += count
+
+      println(s"part $part")
+      println(s"min " + min.toSeq)
+      println(s"max " + max.toSeq)
     }
 
     println("num records: " + numRecords)
