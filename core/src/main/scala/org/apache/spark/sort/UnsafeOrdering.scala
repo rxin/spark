@@ -12,6 +12,12 @@ class UnsafeOrdering extends Ordering[Long] {
   import UnsafeOrdering._
 
   override def compare(left: Long, right: Long): Int = {
+    if (left < 1000000) {
+      assert(left >= 1000000, s"left is $left")
+    }
+    if (right < 1000000) {
+      assert(right >= 1000000, s"right is $right")
+    }
     val lw: Long = UNSAFE.getLong(left)
     val rw: Long = UNSAFE.getLong(right)
     if (lw != rw) {

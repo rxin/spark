@@ -159,6 +159,7 @@ object UnsafeSort extends Logging {
     logInfo(s"finished reading file $inputFile ($read bytes), took $timeTaken ms")
     println(s"finished reading file $inputFile ($read bytes), took $timeTaken ms")
     scala.Console.flush()
+    assert(read == fileSize)
 
     startTime = System.currentTimeMillis()
     // Create the pointers array
