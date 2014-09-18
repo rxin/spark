@@ -80,7 +80,7 @@ object UnsafeSort extends Logging {
    *
    * @param capacity number of records the buffer can support. Each record is 100 bytes.
    */
-  final class SortBuffer(capacity: Long) {
+  final class SortBuffer(capacity: Long, realNeed: Int) {
     require(capacity <= Int.MaxValue)
 
     /** size of the buffer, starting at [[address]] */
@@ -106,7 +106,7 @@ object UnsafeSort extends Logging {
     val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(4 * 1024 * 1024)
 
     /** list of pointers to each block, used for sorting. */
-    val pointers: Array[Long] = new Array[Long](capacity.toInt)
+    val pointers: Array[Long] = new Array[Long](realNeed)
 
     private[this] val ioBufAddressField = {
       val f = classOf[java.nio.Buffer].getDeclaredField("address")
@@ -131,7 +131,7 @@ object UnsafeSort extends Logging {
     val fileSize = new File(inputFile).length
     assert(fileSize % 100 == 0)
 
-    val baseAddress = sortBuffer.address
+    val baseAddress: Long = sortBuffer.address
     var is: FileInputStream = null
     var channel: FileChannel = null
     var read = 0L
@@ -168,6 +168,7 @@ object UnsafeSort extends Logging {
     val pointers = sortBuffer.pointers
     while (pos < fileSize) {
       pointers(i) = baseAddress + pos
+      assert(pointers(i) != 0)
       pos += 100
       i += 1
     }
@@ -202,7 +203,7 @@ object UnsafeSort extends Logging {
         if (sortBuffers.get == null) {
           // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
           val capacity = recordsPerPartition + recordsPerPartition / 10
-          sortBuffers.set(new SortBuffer(capacity))
+          sortBuffers.set(new SortBuffer(capacity, numRecords.toInt))
         }
 
         val sortBuffer = sortBuffers.get()
