@@ -17,11 +17,13 @@
 
 package org.apache.spark.shuffle.sort
 
+import org.apache.spark.serializer.Serializer
+import org.apache.spark.util.MutablePair
 import org.apache.spark.{MapOutputTracker, SparkEnv, Logging, TaskContext}
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.scheduler.MapStatus
 import org.apache.spark.shuffle.{IndexShuffleBlockManager, ShuffleWriter, BaseShuffleHandle}
-import org.apache.spark.storage.ShuffleBlockId
+import org.apache.spark.storage.{BlockObjectWriter, ShuffleBlockId}
 import org.apache.spark.util.collection.ExternalSorter
 
 private[spark] class SortShuffleWriter[K, V, C](
@@ -49,6 +51,54 @@ private[spark] class SortShuffleWriter[K, V, C](
 
   /** Write a bunch of records to this task's output */
   override def write(records: Iterator[_ <: Product2[K, V]]): Unit = {
+    // THIS IS A HACK. For the real write, see write0.
+    val (numRecords, pointers) = records.next().asInstanceOf[(Long, Array[Long])]
+    assert(numRecords <= pointers.length)
+
+    val outputFile = shuffleBlockManager.getDataFile(dep.shuffleId, mapId)
+    val blockId = shuffleBlockManager.consolidateId(dep.shuffleId, mapId)
+
+    // Write the sorted output out.
+    val ser = Serializer.getSerializer(dep.serializer)
+    // Track location of each range in the output file
+    val partitionLengths = new Array[Long](dep.partitioner.numPartitions)
+
+    var i = 0
+    var lastPid = -1
+    var writer: BlockObjectWriter = null
+    val pair = new MutablePair[Long, Long]
+    while (i < numRecords) {
+      val pid = dep.partitioner.getPartition(pointers(i))
+
+      if (pid != lastPid) {
+        // This is a new pid. update the index.
+        if (writer != null) {
+          writer.commitAndClose()
+          partitionLengths(lastPid) = writer.fileSegment().length
+        }
+
+        writer = blockManager.getDiskWriter(
+          blockId, outputFile, ser, 128 * 1024, context.taskMetrics.shuffleWriteMetrics.get)
+        lastPid = pid
+      }
+
+      pair._1 = pointers(i)
+      writer.write(pair)
+      i += 1
+    }
+
+    // Handle the last partition
+    writer.commitAndClose()
+    partitionLengths(lastPid) = writer.fileSegment().length
+
+    shuffleBlockManager.writeIndexFile(dep.shuffleId, mapId, partitionLengths)
+
+    mapStatus = new MapStatus(blockManager.blockManagerId,
+      partitionLengths.map(MapOutputTracker.compressSize))
+  }
+
+
+  def write0(records: Iterator[_ <: Product2[K, V]]): Unit = {
     if (dep.mapSideCombine) {
       if (!dep.aggregator.isDefined) {
         throw new IllegalStateException("Aggregator is empty for map-side combine")

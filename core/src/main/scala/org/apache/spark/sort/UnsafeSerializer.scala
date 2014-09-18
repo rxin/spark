@@ -3,6 +3,8 @@ package org.apache.spark.sort
 import java.io.{EOFException, OutputStream, InputStream}
 import java.nio.ByteBuffer
 
+import org.apache.spark.util.MutablePair
+
 import scala.reflect.ClassTag
 
 import org.apache.spark.serializer._
@@ -45,7 +47,7 @@ final class UnsafeSerializationStream(s: OutputStream) extends SerializationStre
   override def writeObject[T: ClassTag](t: T): SerializationStream = {
     // The record is expected to be (Long, Long), where _1 is the address of the record
     // Copy 100 bytes from the off-heap memory into buf, and write that out.
-    val addr: Long = t.asInstanceOf[(Long, Long)]._1
+    val addr: Long = t.asInstanceOf[MutablePair[Long, Long]]._1
     UnsafeSort.UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
     s.write(buf)
     this
@@ -62,7 +64,7 @@ final class UnsafeDeserializationStream(s: InputStream, ser: UnsafeSerializer)
 
   private[this] val buf = new Array[Byte](100)
   private[this] val BYTE_ARRAY_BASE_OFFSET: Long = UnsafeSort.BYTE_ARRAY_BASE_OFFSET
-  private[this] val blockAddress = UnsafeSort.blocks.get().longValue()
+  private[this] val sortBuffer = UnsafeSort.sortBuffers.get()
 
   override def readObject[T: ClassTag](): T = {
     // Read 100 bytes into the buffer, and then copy that into the off-heap block.
@@ -72,7 +74,7 @@ final class UnsafeDeserializationStream(s: InputStream, ser: UnsafeSerializer)
       throw new EOFException
     }
     assert(read == 100)
-    val addr = blockAddress + ser.offset
+    val addr = sortBuffer.address + ser.offset
     UnsafeSort.UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, addr, 100)
     ser.offset += 100
     (addr, 0L).asInstanceOf[T]

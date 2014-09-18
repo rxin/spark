@@ -19,11 +19,13 @@ package org.apache.spark.util.collection
 
 import java.util.Comparator
 
+import org.apache.spark.Logging
+
 /**
  * Append-only buffer of key-value pairs that keeps track of its estimated size in bytes.
  */
 private[spark] class SizeTrackingPairBuffer[K, V](initialCapacity: Int = 64)
-  extends SizeTracker with SizeTrackingPairCollection[K, V]
+  extends SizeTracker with SizeTrackingPairCollection[K, V] with Logging
 {
   require(initialCapacity <= (1 << 29), "Can't make capacity bigger than 2^29 elements")
   require(initialCapacity >= 1, "Invalid initial capacity")
@@ -80,7 +82,10 @@ private[spark] class SizeTrackingPairBuffer[K, V](initialCapacity: Int = 64)
 
   /** Iterate through the data in a given order. For this class this is not really destructive. */
   override def destructiveSortedIterator(keyComparator: Comparator[K]): Iterator[(K, V)] = {
+    val startTime = System.currentTimeMillis
     new Sorter(new KVArraySortDataFormat[K, AnyRef]).sort(data, 0, curSize, keyComparator)
+    val timeTaken = System.currentTimeMillis - startTime
+    logInfo(s"Sorter with KVArraySortDataFormat took $timeTaken ms")
     iterator
   }
 }

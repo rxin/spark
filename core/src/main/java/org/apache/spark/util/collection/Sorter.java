@@ -31,7 +31,7 @@ import java.util.Comparator;
  * uses this to sort an Array with alternating elements of the form [key, value, key, value].
  * This generalization comes with minimal overhead -- see SortDataFormat for more information.
  */
-class Sorter<K, Buffer> {
+public class Sorter<K, Buffer> {
 
   /**
    * This is the minimum sized sequence that will be merged.  Shorter
@@ -91,7 +91,7 @@ class Sorter<K, Buffer> {
    *
    * @author Josh Bloch
    */
-  void sort(Buffer a, int lo, int hi, Comparator<? super K> c) {
+  public void sort(Buffer a, int lo, int hi, Comparator<? super K> c) {
     assert c != null;
 
     int nRemaining  = hi - lo;

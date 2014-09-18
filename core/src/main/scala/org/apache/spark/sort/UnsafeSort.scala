@@ -1,10 +1,12 @@
 package org.apache.spark.sort
 
 import java.io._
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 
-import org.apache.spark.util.MutablePair
-import org.apache.spark.{SparkConf, TaskContext, Partition, SparkContext}
+import org.apache.spark._
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
+import org.apache.spark.util.collection.{Sorter, SortDataFormat}
 
 
 /**
@@ -12,9 +14,11 @@ import org.apache.spark.rdd.{ShuffledRDD, RDD}
  *
  * See also [[UnsafeSerializer]] and [[UnsafeOrdering]].
  */
-object UnsafeSort {
+object UnsafeSort extends Logging {
 
   val NUM_EBS = 8
+
+  val ord = new UnsafeOrdering
 
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
@@ -71,18 +75,52 @@ object UnsafeSort {
 
   final val BYTE_ARRAY_BASE_OFFSET: Long = UNSAFE.arrayBaseOffset(classOf[Array[Byte]])
 
+  /**
+   * A class to hold information needed to run sort within each partition.
+   *
+   * @param capacity number of records the buffer can support. Each record is 100 bytes.
+   */
+  final class SortBuffer(capacity: Long) {
+    require(capacity <= Int.MaxValue)
+
+    /** size of the buffer, starting at [[address]] */
+    val len: Long = capacity * 100
+
+    /** address pointing to a block of memory off heap */
+    val address: Long = {
+      val blockSize = capacity * 100
+      logInfo(s"Allocating $blockSize bytes")
+      val blockAddress = UNSAFE.allocateMemory(blockSize)
+      logInfo(s"Allocating $blockSize bytes ... allocated at $blockAddress")
+      blockAddress
+    }
+
+    /** temporary buffer used to store io data before putting them into our block. */
+    val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(4 * 1024 * 1024)
+
+    /** list of pointers to each block, used for sorting. */
+    val pointers: Array[Long] = new Array[Long](capacity.toInt)
+
+    /** Return the memory address of the memory the [[ioBuf]] points to. */
+    val ioBufAddress: Long = {
+      val addressField = classOf[java.nio.Buffer].getDeclaredField("address")
+      addressField.setAccessible(true)
+      addressField.getLong(ioBuf)
+    }
+  }
+
   /** A thread local variable storing a pointer to the buffer allocated off-heap. */
-  val blocks = new ThreadLocal[java.lang.Long]
+  val sortBuffers = new ThreadLocal[SortBuffer]
 
   def createInputRDDUnsafe(sc: SparkContext, sizeInGB: Int, numParts: Int, bufSize: Int)
-    : RDD[MutablePair[Long, Long]] = {
+    : RDD[(Long, Array[Long])] = {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val hosts = Sort.readSlaves()
-    new NodeLocalRDD[MutablePair[Long, Long]](sc, numParts, hosts) {
+    new NodeLocalRDD[(Long, Array[Long])](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
         val host = split.asInstanceOf[NodeLocalRDDPartition].node
@@ -96,39 +134,92 @@ object UnsafeSort {
         val fileSize = new File(outputFile).length
         assert(fileSize % 100 == 0)
 
-        if (blocks.get == null) {
-          val blockSize = recordsPerPartition * 100
+        if (sortBuffers.get == null) {
           // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
-          val toAlloc = blockSize + blockSize / 10
-          logInfo(s"Allocating $toAlloc bytes")
-          val blockAddress = UNSAFE.allocateMemory(toAlloc)
-          logInfo(s"Allocating $toAlloc bytes ... allocated at $blockAddress")
-          blocks.set(blockAddress)
+          val capacity = recordsPerPartition + recordsPerPartition / 10
+          sortBuffers.set(new SortBuffer(capacity))
         }
 
-        new Iterator[MutablePair[Long, Long]] {
-          private[this] var pos: Long = blocks.get().longValue()
-          private[this] val endPos: Long = pos + fileSize
-          private[this] val arrOffset = BYTE_ARRAY_BASE_OFFSET
-          private[this] val buf = new Array[Byte](100)
-          private[this] val is = new BufferedInputStream(new FileInputStream(outputFile), bufSize)
-          private[this] val tuple = new MutablePair[Long, Long]
-          override def hasNext: Boolean = {
-            val more = pos < endPos
-            if (!more) {
-              is.close()
-            }
-            more
+        val sortBuffer = sortBuffers.get()
+        val baseAddress = sortBuffer.address
+
+        // Read 4MB at a time into a direct ByteBuffer, and then copy that into our block.
+        var is: FileInputStream = null
+        var channel: FileChannel = null
+        try {
+          is = new FileInputStream(outputFile)
+          channel = is.getChannel()
+          var read = 0L
+          while (read < fileSize) {
+            val read0 = channel.read(sortBuffer.ioBuf)
+            UNSAFE.copyMemory(sortBuffer.ioBufAddress, baseAddress + read, read0)
+            read += read0
           }
-          override def next() = {
-            is.read(buf)
-            UNSAFE.copyMemory(buf, arrOffset, null, pos, 100)
-            tuple._1 = pos
-            pos += 100
-            tuple
+        } finally {
+          if (channel != null) {
+            channel.close()
+          }
+          if (is != null) {
+            is.close()
           }
         }
+
+        // Create the pointers array
+        var pos = 0
+        var i = 0
+        val pointers = sortBuffer.pointers
+        while (pos < fileSize) {
+          pointers(i) = baseAddress + pos
+          pos += 100
+          i += 1
+        }
+
+        // Sort!!!
+        {
+          val startTime = System.currentTimeMillis
+          val sorter = new Sorter(new LongArraySorter).sort(pointers, 0, numRecords.toInt, ord)
+          val timeTaken = System.currentTimeMillis - startTime
+          logInfo(s"Sorting $numRecords records took $timeTaken ms")
+        }
+
+        Iterator((recordsPerPartition, pointers))
       }
     }
   }
+
+
+  private[spark]
+  final class LongArraySorter extends SortDataFormat[Long, Array[Long]] {
+    /** Return the sort key for the element at the given index. */
+    override protected def getKey(data: Array[Long], pos: Int): Long = data(pos)
+
+    /** Swap two elements. */
+    override protected def swap(data: Array[Long], pos0: Int, pos1: Int) {
+      val tmp = data(pos0)
+      data(pos0) = data(pos1)
+      data(pos1) = tmp
+    }
+
+    /** Copy a single element from src(srcPos) to dst(dstPos). */
+    override protected def copyElement(src: Array[Long], srcPos: Int,
+                                       dst: Array[Long], dstPos: Int) {
+      dst(dstPos) = src(srcPos)
+    }
+
+    /**
+     * Copy a range of elements starting at src(srcPos) to dst, starting at dstPos.
+     * Overlapping ranges are allowed.
+     */
+    override protected def copyRange(src: Array[Long], srcPos: Int,
+                                     dst: Array[Long], dstPos: Int, length: Int) {
+      System.arraycopy(src, srcPos, dst, dstPos, length)
+    }
+
+    /**
+     * Allocates a Buffer that can hold up to 'length' elements.
+     * All elements of the buffer should be considered invalid until data is explicitly copied in.
+     */
+    override protected def allocate(length: Int): Array[Long] = new Array[Long](length)
+  }
+
 }
