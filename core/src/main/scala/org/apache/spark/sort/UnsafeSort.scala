@@ -231,11 +231,11 @@ object UnsafeSort extends Logging {
   private[spark]
   final class LongArraySorter extends SortDataFormat[Long, Array[Long]] {
     /** Return the sort key for the element at the given index. */
-    override protected def getKey(data: Array[Long], pos: Int): Long = {
-      val ret = data(pos)
-      assert(ret != 0, s"data($pos) is 0")  // TODO: remove this
-      ret
-    }
+    override protected def getKey(data: Array[Long], pos: Int): Long = data(pos)
+//      val ret = data(pos)
+//      assert(ret != 0, s"data($pos) is 0")  // TODO: remove this
+//      ret
+//    }
 
     /** Swap two elements. */
     override protected def swap(data: Array[Long], pos0: Int, pos1: Int) {
