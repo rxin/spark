@@ -140,9 +140,10 @@ object UnsafeSort extends Logging {
       channel = is.getChannel()
       while (read < fileSize) {
         assert(read < sortBuffer.len)  // TODO: remove this
-        sortBuffer.setIoBufAddress(baseAddress + read)
+        //sortBuffer.setIoBufAddress(baseAddress + read)
         // This should read read0 bytes directly into our buffer
         val read0 = channel.read(sortBuffer.ioBuf)
+        UNSAFE.copyMemory(sortBuffer.ioBufAddress, baseAddress + read, read0)
         sortBuffer.ioBuf.clear()
         read += read0
       }
@@ -168,7 +169,7 @@ object UnsafeSort extends Logging {
     val pointers = sortBuffer.pointers
     while (i < sortBuffer.realNeed) {
       pointers(i) = baseAddress + pos
-      assert(pointers(i) != 0)
+      assert(pointers(i) != 0)  // TODO: remove this
       pos += 100
       i += 1
     }
@@ -232,7 +233,7 @@ object UnsafeSort extends Logging {
     /** Return the sort key for the element at the given index. */
     override protected def getKey(data: Array[Long], pos: Int): Long = {
       val ret = data(pos)
-      assert(ret != 0, s"data($pos) is 0")
+      assert(ret != 0, s"data($pos) is 0")  // TODO: remove this
       ret
     }
 
