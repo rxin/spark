@@ -124,6 +124,56 @@ object UnsafeSort extends Logging {
   /** A thread local variable storing a pointer to the buffer allocated off-heap. */
   val sortBuffers = new ThreadLocal[SortBuffer]
 
+  def readFileIntoBuffer(inputFile: String, sortBuffer: SortBuffer) {
+    logInfo(s"reading file $inputFile")
+    var startTime = System.currentTimeMillis()
+    val fileSize = new File(inputFile).length
+    assert(fileSize % 100 == 0)
+
+    val baseAddress = sortBuffer.address
+    var is: FileInputStream = null
+    var channel: FileChannel = null
+    try {
+      is = new FileInputStream(inputFile)
+      channel = is.getChannel()
+      var read = 0L
+      while (read < fileSize) {
+        sortBuffer.setIoBufAddress(baseAddress + read)
+        // This should read read0 bytes directly into our buffer
+        val read0 = channel.read(sortBuffer.ioBuf)
+        sortBuffer.ioBuf.clear()
+        read += read0
+      }
+    } finally {
+      if (channel != null) {
+        channel.close()
+      }
+      if (is != null) {
+        is.close()
+      }
+    }
+
+    var timeTaken = System.currentTimeMillis() - startTime
+    logInfo(s"finished reading file $inputFile, took $timeTaken ms")
+    println(s"finished reading file $inputFile, took $timeTaken ms")
+    scala.Console.flush()
+
+    startTime = System.currentTimeMillis()
+    // Create the pointers array
+    var pos = 0
+    var i = 0
+    val pointers = sortBuffer.pointers
+    while (pos < fileSize) {
+      pointers(i) = baseAddress + pos
+      pos += 100
+      i += 1
+    }
+    timeTaken = System.currentTimeMillis() - startTime
+    logInfo(s"finished building index for $inputFile, took $timeTaken ms")
+    println(s"finished building index for $inputFile, took $timeTaken ms")
+    scala.Console.flush()
+  }
+
   def createInputRDDUnsafe(sc: SparkContext, sizeInGB: Int, numParts: Int, bufSize: Int)
     : RDD[(Long, Array[Long])] = {
 
@@ -153,49 +203,21 @@ object UnsafeSort extends Logging {
         }
 
         val sortBuffer = sortBuffers.get()
-        val baseAddress = sortBuffer.address
 
-        var is: FileInputStream = null
-        var channel: FileChannel = null
-        try {
-          is = new FileInputStream(outputFile)
-          channel = is.getChannel()
-          var read = 0L
-          while (read < fileSize) {
-            sortBuffer.setIoBufAddress(baseAddress + read)
-            // This should read read0 bytes directly into our buffer
-            val read0 = channel.read(sortBuffer.ioBuf)
-            sortBuffer.ioBuf.clear()
-            read += read0
-          }
-        } finally {
-          if (channel != null) {
-            channel.close()
-          }
-          if (is != null) {
-            is.close()
-          }
-        }
-
-        // Create the pointers array
-        var pos = 0
-        var i = 0
-        val pointers = sortBuffer.pointers
-        while (pos < fileSize) {
-          pointers(i) = baseAddress + pos
-          pos += 100
-          i += 1
-        }
+        readFileIntoBuffer(outputFile, sortBuffer)
 
         // Sort!!!
         {
           val startTime = System.currentTimeMillis
-          val sorter = new Sorter(new LongArraySorter).sort(pointers, 0, numRecords.toInt, ord)
+          val sorter = new Sorter(new LongArraySorter).sort(
+            sortBuffer.pointers, 0, numRecords.toInt, ord)
           val timeTaken = System.currentTimeMillis - startTime
           logInfo(s"Sorting $numRecords records took $timeTaken ms")
+          println(s"Sorting $numRecords records took $timeTaken ms")
+          scala.Console.flush()
         }
 
-        Iterator((recordsPerPartition, pointers))
+        Iterator((recordsPerPartition, sortBuffer.pointers))
       }
     }
   }
