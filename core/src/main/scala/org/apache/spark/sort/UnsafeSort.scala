@@ -80,7 +80,7 @@ object UnsafeSort extends Logging {
    *
    * @param capacity number of records the buffer can support. Each record is 100 bytes.
    */
-  final class SortBuffer(capacity: Long, realNeed: Int) {
+  final class SortBuffer(capacity: Long, val realNeed: Int) {
     require(capacity <= Int.MaxValue)
 
     /** size of the buffer, starting at [[address]] */
@@ -166,7 +166,7 @@ object UnsafeSort extends Logging {
     var pos = 0
     var i = 0
     val pointers = sortBuffer.pointers
-    while (pos < fileSize) {
+    while (i < sortBuffer.realNeed) {
       pointers(i) = baseAddress + pos
       assert(pointers(i) != 0)
       pos += 100
