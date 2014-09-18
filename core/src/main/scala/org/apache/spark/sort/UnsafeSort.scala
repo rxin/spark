@@ -92,6 +92,7 @@ object UnsafeSort extends Logging {
       logInfo(s"Allocating $blockSize bytes")
       val blockAddress = UNSAFE.allocateMemory(blockSize)
       logInfo(s"Allocating $blockSize bytes ... allocated at $blockAddress")
+      println(s"Allocating $blockSize bytes ... allocated at $blockAddress")
       blockAddress
     }
 
@@ -138,7 +139,7 @@ object UnsafeSort extends Logging {
       is = new FileInputStream(inputFile)
       channel = is.getChannel()
       while (read < fileSize) {
-        assert(baseAddress + read < sortBuffer.len)  // TODO: remove this
+        assert(read < sortBuffer.len)  // TODO: remove this
         sortBuffer.setIoBufAddress(baseAddress + read)
         // This should read read0 bytes directly into our buffer
         val read0 = channel.read(sortBuffer.ioBuf)
