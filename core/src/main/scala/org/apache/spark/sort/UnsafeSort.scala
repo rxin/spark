@@ -133,11 +133,12 @@ object UnsafeSort extends Logging {
     val baseAddress = sortBuffer.address
     var is: FileInputStream = null
     var channel: FileChannel = null
+    var read = 0L
     try {
       is = new FileInputStream(inputFile)
       channel = is.getChannel()
-      var read = 0L
       while (read < fileSize) {
+        assert(baseAddress + read < sortBuffer.len)  // TODO: remove this
         sortBuffer.setIoBufAddress(baseAddress + read)
         // This should read read0 bytes directly into our buffer
         val read0 = channel.read(sortBuffer.ioBuf)
@@ -154,8 +155,8 @@ object UnsafeSort extends Logging {
     }
 
     var timeTaken = System.currentTimeMillis() - startTime
-    logInfo(s"finished reading file $inputFile, took $timeTaken ms")
-    println(s"finished reading file $inputFile, took $timeTaken ms")
+    logInfo(s"finished reading file $inputFile ($read bytes), took $timeTaken ms")
+    println(s"finished reading file $inputFile ($read bytes), took $timeTaken ms")
     scala.Console.flush()
 
     startTime = System.currentTimeMillis()
