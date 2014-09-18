@@ -95,17 +95,29 @@ object UnsafeSort extends Logging {
       blockAddress
     }
 
-    /** temporary buffer used to store io data before putting them into our block. */
+    /**
+     * A dummy direct buffer. We use this in a very unconventional way. We use reflection to
+     * change the address of the offheap memory to our large buffer, and then use channel read
+     * to directly read the data into our large buffer.
+     *
+     * i.e. the 4MB allocated here is not used at all. We are only the 4MB for tracking.
+     */
     val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(4 * 1024 * 1024)
 
     /** list of pointers to each block, used for sorting. */
     val pointers: Array[Long] = new Array[Long](capacity.toInt)
 
+    private[this] val ioBufAddressField = {
+      val f = classOf[java.nio.Buffer].getDeclaredField("address")
+      f.setAccessible(true)
+      f
+    }
+
     /** Return the memory address of the memory the [[ioBuf]] points to. */
-    val ioBufAddress: Long = {
-      val addressField = classOf[java.nio.Buffer].getDeclaredField("address")
-      addressField.setAccessible(true)
-      addressField.getLong(ioBuf)
+    def ioBufAddress: Long = ioBufAddressField.getLong(ioBuf)
+
+    def setIoBufAddress(addr: Long) = {
+      ioBufAddressField.setLong(ioBuf, addr)
     }
   }
 
@@ -143,7 +155,6 @@ object UnsafeSort extends Logging {
         val sortBuffer = sortBuffers.get()
         val baseAddress = sortBuffer.address
 
-        // Read 4MB at a time into a direct ByteBuffer, and then copy that into our block.
         var is: FileInputStream = null
         var channel: FileChannel = null
         try {
@@ -151,8 +162,9 @@ object UnsafeSort extends Logging {
           channel = is.getChannel()
           var read = 0L
           while (read < fileSize) {
+            sortBuffer.setIoBufAddress(baseAddress + read)
+            // This should read read0 bytes directly into our buffer
             val read0 = channel.read(sortBuffer.ioBuf)
-            UNSAFE.copyMemory(sortBuffer.ioBufAddress, baseAddress + read, read0)
             sortBuffer.ioBuf.clear()
             read += read0
           }
