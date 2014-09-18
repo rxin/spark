@@ -85,7 +85,7 @@ def parse_args():
         help="Availability zone to launch instances in, or 'all' to spread " +
              "slaves across multiple (an additional $0.01/Gb for bandwidth" +
              "between zones applies)")
-    parser.add_option("-a", "--ami", default="ami-d4248abc", help="Amazon Machine Image ID to use")
+    parser.add_option("-a", "--ami", default="ami-e2ee478a", help="Amazon Machine Image ID to use")
     parser.add_option(
         "-v", "--spark-version", default=DEFAULT_SPARK_VERSION,
         help="Version of Spark to use: 'X.Y.Z' or a specific git hash (default: %default)")
@@ -686,7 +686,7 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
             print slave.public_dns_name
             ssh_write(slave.public_dns_name, opts, ['tar', 'x'], dot_ssh_tar)
 
-    modules = ['spark', 'ephemeral-hdfs', 'spark-standalone']
+    modules = ['spark-standalone']
 
     if opts.hadoop_major_version == "1":
         modules = filter(lambda x: x != "mapreduce", modules)
