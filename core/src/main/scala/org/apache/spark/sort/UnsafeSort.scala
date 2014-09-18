@@ -153,6 +153,7 @@ object UnsafeSort extends Logging {
           while (read < fileSize) {
             val read0 = channel.read(sortBuffer.ioBuf)
             UNSAFE.copyMemory(sortBuffer.ioBufAddress, baseAddress + read, read0)
+            sortBuffer.ioBuf.clear()
             read += read0
           }
         } finally {
