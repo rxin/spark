@@ -46,8 +46,13 @@ object UnsafeSort extends Logging {
 
       val startTime = System.currentTimeMillis()
       val sortBuffer = UnsafeSort.sortBuffers.get()
+      assert(sortBuffer != null)
       var offset = 0L
       var numShuffleBlocks = 0
+
+      println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+      scala.Console.flush()
+
       while (iter.hasNext) {
         val a = iter.next()._2.asInstanceOf[ManagedBuffer]
         a match {
@@ -70,6 +75,7 @@ object UnsafeSort extends Logging {
             sortBuffer.ioBuf.clear()
             sortBuffer.setIoBufAddress(sortBuffer.address + offset)
             val read0 = channel.read(sortBuffer.ioBuf)
+            assert(read0 == buf.length)
             offset += read0
             channel.close()
             fs.close()
