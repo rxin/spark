@@ -65,12 +65,15 @@ object XOR {
         val part = split.index
         val file = outputMap(split.index)
 
+        val cmp = UnsignedBytes.lexicographicalComparator()
+
         val fileSize = new File(file).length
         assert(fileSize % 100 == 0)
         var pos = 0
         val min = new Array[Byte](10)
         val max = new Array[Byte](10)
         val is = new BufferedInputStream(new FileInputStream(file), 4 * 1024 * 1024)
+        val lastRecord = new Array[Byte](100)
         val buf = new Array[Byte](100)
         val checksum = new Array[Byte](100)
         while (pos < fileSize) {
@@ -78,6 +81,10 @@ object XOR {
           xor(checksum, buf)
           pos += 100
 
+          // Make sure current record >= previous record
+          assert(cmp.compare(buf, lastRecord) >= 0)
+
+          // Set partition min and max
           if (pos == 100) {
             System.arraycopy(buf, 0, min, 0, 10)
           } else if (pos == fileSize) {
