@@ -38,6 +38,7 @@ import boto
 from boto.ec2.blockdevicemapping import BlockDeviceMapping, BlockDeviceType, EBSBlockDeviceType
 from boto import ec2
 from boto import vpc
+from multiprocessing import Pool
 
 DEFAULT_SPARK_VERSION = "1.0.0"
 
@@ -604,8 +605,11 @@ def launch_cluster(conn, opts, cluster_name):
         name = '{cn}-master-{iid}'.format(cn=cluster_name, iid=master.id)
         tag_instance(master, name)
 
+    num_slave_tagged = 0
     for slave in slave_nodes:
         name = '{cn}-slave-{iid}'.format(cn=cluster_name, iid=slave.id)
+        num_slave_tagged += 1
+        print "tagging slave %i %s" % (num_slave_tagged, name)
         tag_instance(slave, name)
 
     # Return all the instances
@@ -615,7 +619,9 @@ def launch_cluster(conn, opts, cluster_name):
 def tag_instance(instance, name):
     for i in range(0, 5):
         try:
+            print "Tagging " + name
             instance.add_tag(key='Name', value=name)
+            break
         except:
             print "Failed attempt %i of 5 to tag %s" % ((i + 1), name)
             if (i == 5):
@@ -630,6 +636,7 @@ def get_existing_cluster(conn, opts, cluster_name, die_on_error=True):
     print "Searching for existing cluster " + cluster_name + "..."
     # Search all the spot instance requests, and copy any tags from the spot
     # instance request to the cluster.
+    print "Searching for existing cluster " + cluster_name + "... spot requests"
     spot_instance_requests = conn.get_all_spot_instance_requests()
     for req in spot_instance_requests:
         if req.state != u'active':
@@ -642,6 +649,8 @@ def get_existing_cluster(conn, opts, cluster_name, die_on_error=True):
                 for instance in active:
                     if (instance.tags.get(u'Name') is None):
                         tag_instance(instance, name)
+
+    print "Searching for existing cluster " + cluster_name + "... reservations"
     # Now proceed to detect master and slaves instances.
     reservations = conn.get_all_instances()
     master_nodes = []
@@ -652,7 +661,7 @@ def get_existing_cluster(conn, opts, cluster_name, die_on_error=True):
             name = inst.tags.get(u'Name', "")
             if name.startswith(cluster_name + "-master"):
                 master_nodes.append(inst)
-            elif name.startswith(cluster_name + "-slave"):
+            elif name.startswith(cluster_name + ""):
                 slave_nodes.append(inst)
     if any((master_nodes, slave_nodes)):
         print ("Found %d master(s), %d slaves" % (len(master_nodes), len(slave_nodes)))
@@ -670,8 +679,16 @@ def get_existing_cluster(conn, opts, cluster_name, die_on_error=True):
 # or started EC2 cluster.
 
 
+def copy_ssh_parallel(args):
+    (slave, opts, dot_ssh_tar) = args
+    print slave.public_dns_name
+    ssh_write(slave.public_dns_name, opts, ['tar', 'x'], dot_ssh_tar)
+
+
 def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
     master = master_nodes[0].public_dns_name
+    deploy_ssh_key = False
+    print "Bypassing SSH key generation since it should be on the AMI already"
     if deploy_ssh_key:
         print "Generating cluster's SSH key on master..."
         key_setup = """
@@ -682,9 +699,11 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
         ssh(master, opts, key_setup)
         dot_ssh_tar = ssh_read(master, opts, ['tar', 'c', '.ssh'])
         print "Transferring cluster's SSH key to slaves..."
-        for slave in slave_nodes:
-            print slave.public_dns_name
-            ssh_write(slave.public_dns_name, opts, ['tar', 'x'], dot_ssh_tar)
+        p = Pool(16)
+        p.map(copy_ssh_parallel, map(lambda x: (x, opts, dot_ssh_tar), slave_nodes))
+        # for slave in slave_nodes:
+        #     print slave.public_dns_name
+        #     ssh_write(slave.public_dns_name, opts, ['tar', 'x'], dot_ssh_tar)
 
     modules = ['spark-standalone']
 
@@ -1016,7 +1035,10 @@ def real_main():
             for inst in master_nodes:
                 inst.terminate()
             print "Terminating slaves..."
+            num_slaves_terminated = 0
             for inst in slave_nodes:
+                num_slaves_terminated += 1
+                print "Terminating %i %s" % (num_slaves_terminated, inst.id)
                 inst.terminate()
 
             # Delete security groups as well
