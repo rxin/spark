@@ -73,13 +73,14 @@ object UnsafeSort extends Logging {
             channel.position(buf.offset)
             assert(buf.length < 4 * 1024 * 1024)
             sortBuffer.ioBuf.clear()
+            sortBuffer.ioBuf.limit(buf.length.toInt)
             sortBuffer.setIoBufAddress(sortBuffer.address + offset)
-            var read0 = 0L
-            while (read0 < buf.length) {
-              val thisRead = channel.read(sortBuffer.ioBuf)
-              println(s"read $thisRead total $read0 buf size ${buf.length} ")
-              read0 += thisRead
-            }
+            //var read0 = 0L
+            //while (read0 < buf.length) {
+              val read0 = channel.read(sortBuffer.ioBuf)
+              //println(s"read $thisRead total $read0 buf size ${buf.length} ")
+              //read0 += thisRead
+            //}
             assert(read0 == buf.length)
             offset += read0
             channel.close()
