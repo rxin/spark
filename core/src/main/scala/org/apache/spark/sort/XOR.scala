@@ -1,6 +1,7 @@
 package org.apache.spark.sort
 
 import java.io._
+import java.util.zip.CRC32
 
 import com.google.common.primitives.UnsignedBytes
 
@@ -59,7 +60,7 @@ object XOR {
     }
 
     val outputMap: Map[Int, String] = output.map(t => (t._1, t._3)).toMap
-    val checksumOut = new NodeLocalRDD[(Int, Long, Array[Byte], Array[Byte], Array[Byte])](
+    val checksumOut = new NodeLocalRDD[(Int, Long, Array[Byte], Array[Byte], Array[Byte], Long)](
       sc, output.size, output.sorted.map(_._2).toArray) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
@@ -76,6 +77,7 @@ object XOR {
         val lastRecord = new Array[Byte](100)
         val buf = new Array[Byte](100)
         val checksum = new Array[Byte](100)
+        val crc32 = new CRC32
         while (pos < fileSize) {
           assert(is.read(buf) == 100)
           xor(checksum, buf)
@@ -83,6 +85,9 @@ object XOR {
 
           // Make sure current record >= previous record
           assert(cmp.compare(buf, lastRecord) >= 0)
+
+          // Compute crc32
+          crc32.update(buf)
 
           // Set partition min and max
           if (pos == 100) {
@@ -92,7 +97,7 @@ object XOR {
           }
         }
         is.close()
-        Iterator((part, fileSize / 100, checksum, min, max))
+        Iterator((part, fileSize / 100, checksum, min, max, crc32.getValue))
       }
     }.collect()
 
@@ -101,17 +106,18 @@ object XOR {
     val checksum = new Array[Byte](100)
     var numRecords = 0L
     var lastMax = new Array[Byte](10)
-    checksumOut.foreach { case (part, count, input, min, max) =>
+    checksumOut.foreach { case (part, count, input, min, max, crc32) =>
       xor(checksum, input)
       numRecords += count
     }
     println("num records: " + numRecords)
     println("xor checksum: " + checksum.toSeq)
 
-    checksumOut.foreach { case (part, count, input, min, max) =>
+    checksumOut.foreach { case (part, count, input, min, max, crc32) =>
       println(s"part $part")
       println(s"min " + min.toSeq)
       println(s"max " + max.toSeq)
+      println(s"crc32 " + crc32 + " " + java.lang.Long.toHexString(crc32))
 
       assert(cmp.compare(min, max) < 0, "min >= max")
       assert(cmp.compare(lastMax, min) < 0, "current partition min < last partition max")
