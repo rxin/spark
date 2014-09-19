@@ -202,7 +202,7 @@ object UnsafeSort extends Logging {
         if (sortBuffers.get == null) {
           // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
           val capacity = recordsPerPartition + recordsPerPartition / 10
-          sortBuffers.set(new SortBuffer(capacity, recordsPerPartition.toInt))
+          sortBuffers.set(new SortBuffer(capacity))
         }
 
         val sortBuffer = sortBuffers.get()
