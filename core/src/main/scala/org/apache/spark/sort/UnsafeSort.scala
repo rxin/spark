@@ -171,7 +171,8 @@ object UnsafeSort extends Logging {
       pointers(i) = baseAddress + pos
       assert(pointers(i) != 0)  // TODO: remove this
       val left = pointers(i)
-      assert(left >= sortBuffer.address && left < sortBuffer.address + sortBuffer.len, s"left is $left")
+      assert(left >= sortBuffer.address && left < sortBuffer.address + sortBuffer.len,
+        s"left is $left, start is ${sortBuffer.address}, len is ${sortBuffer.len}")
       pos += 100
       i += 1
     }
