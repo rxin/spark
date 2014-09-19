@@ -92,8 +92,8 @@ object UnsafeSort extends Logging {
       }
 
       val timeTaken = System.currentTimeMillis() - startTime
-      logInfo(s"Reduce: took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
-      println(s"Reduce: took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
+      logInfo(s"XXX Reduce: took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
+      println(s"XXX Reduce: took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
 
       buildLongPointers(sortBuffer, offset)
       val pointers = sortBuffer.pointers
@@ -106,14 +106,16 @@ object UnsafeSort extends Logging {
         val sorter = new Sorter(new LongArraySorter).sort(
           sortBuffer.pointers, 0, numRecords, ord)
         val timeTaken = System.currentTimeMillis - startTime
-        logInfo(s"Reduce: Sorting $numRecords records took $timeTaken ms")
-        println(s"Reduce: Sorting $numRecords records took $timeTaken ms")
+        logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms")
+        println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms")
         scala.Console.flush()
       }
 
       val count: Long = {
         val startTime = System.currentTimeMillis
-        val volIndex = part % NUM_EBS
+
+        // Pick the EBS volume to write to. We pick a random one hoping to balance out the writes.
+        val volIndex = new java.util.Random().nextInt(NUM_EBS)
         val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
         if (!new File(baseFolder).exists()) {
           new File(baseFolder).mkdirs()
@@ -132,8 +134,8 @@ object UnsafeSort extends Logging {
         }
         os.close()
         val timeTaken = System.currentTimeMillis - startTime
-        logInfo(s"Reduce: writing $numRecords records took $timeTaken ms")
-        println(s"Reduce: writing $numRecords records took $timeTaken ms")
+        logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms")
+        println(s"XXX Reduce: writing $numRecords records took $timeTaken ms")
         i.toLong
       }
       Iterator(count)
@@ -166,8 +168,8 @@ object UnsafeSort extends Logging {
       val blockSize = capacity * 100
       logInfo(s"Allocating $blockSize bytes")
       val blockAddress = UNSAFE.allocateMemory(blockSize)
-      logInfo(s"Allocating $blockSize bytes ... allocated at $blockAddress")
-      println(s"Allocating $blockSize bytes ... allocated at $blockAddress")
+      logInfo(s"XXX Allocating $blockSize bytes ... allocated at $blockAddress")
+      println(s"XXX Allocating $blockSize bytes ... allocated at $blockAddress")
       blockAddress
     }
 
@@ -230,8 +232,8 @@ object UnsafeSort extends Logging {
       }
     }
     val timeTaken = System.currentTimeMillis() - startTime
-    logInfo(s"finished reading file $inputFile ($read bytes), took $timeTaken ms")
-    println(s"finished reading file $inputFile ($read bytes), took $timeTaken ms")
+    logInfo(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
+    println(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
     scala.Console.flush()
     assert(read == fileSize)
   }
@@ -248,8 +250,8 @@ object UnsafeSort extends Logging {
       i += 1
     }
     val timeTaken = System.currentTimeMillis() - startTime
-    logInfo(s"finished building index, took $timeTaken ms")
-    println(s"finished building index, took $timeTaken ms")
+    logInfo(s"XXX finished building index, took $timeTaken ms")
+    println(s"XXX finished building index, took $timeTaken ms")
     scala.Console.flush()
   }
 
@@ -292,8 +294,8 @@ object UnsafeSort extends Logging {
           val sorter = new Sorter(new LongArraySorter).sort(
             sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
           val timeTaken = System.currentTimeMillis - startTime
-          logInfo(s"Sorting $recordsPerPartition records took $timeTaken ms")
-          println(s"Sorting $recordsPerPartition records took $timeTaken ms")
+          logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
+          println(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
           scala.Console.flush()
         }
 

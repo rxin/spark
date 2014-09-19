@@ -98,8 +98,8 @@ private[spark] class SortShuffleWriter[K, V, C](
     shuffleBlockManager.writeIndexFile(dep.shuffleId, mapId, partitionLengths)
 
     val timeTaken = System.currentTimeMillis() - startTime
-    logInfo("Time taken to write shuffle files: " + timeTaken)
-    println("Time taken to write shuffle files: " + timeTaken)
+    logInfo("XXX Time taken to write shuffle files: " + timeTaken)
+    println("XXX Time taken to write shuffle files: " + timeTaken)
 
     mapStatus = new MapStatus(blockManager.blockManagerId,
       partitionLengths.map(MapOutputTracker.compressSize))
