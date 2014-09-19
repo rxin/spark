@@ -91,7 +91,7 @@ object UnsafeSort extends Logging {
       }
 
       val timeTaken = System.currentTimeMillis() - startTime
-      logInfo(s"took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
+      logInfo(s"Reduce: took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
 
       buildLongPointers(sortBuffer, offset)
       val pointers = sortBuffer.pointers
@@ -104,8 +104,8 @@ object UnsafeSort extends Logging {
         val sorter = new Sorter(new LongArraySorter).sort(
           sortBuffer.pointers, 0, numRecords, ord)
         val timeTaken = System.currentTimeMillis - startTime
-        logInfo(s"Sorting $recordsPerPartition records took $timeTaken ms")
-        println(s"Sorting $recordsPerPartition records took $timeTaken ms")
+        logInfo(s"Reduce: Sorting $recordsPerPartition records took $timeTaken ms")
+        println(s"Reduce: Sorting $recordsPerPartition records took $timeTaken ms")
         scala.Console.flush()
       }
 

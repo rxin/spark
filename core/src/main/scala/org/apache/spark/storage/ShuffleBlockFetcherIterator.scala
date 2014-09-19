@@ -120,7 +120,7 @@ final class ShuffleBlockFetcherIterator(
     isZombie = true
     // Release the current buffer if necessary
     if (currentResult != null && !currentResult.failed) {
-      currentResult.buf.release()
+      //currentResult.buf.release()
     }
 
     // Release buffers in the results queue
@@ -128,7 +128,7 @@ final class ShuffleBlockFetcherIterator(
     while (iter.hasNext) {
       val result = iter.next()
       if (!result.failed) {
-        result.buf.release()
+       // result.buf.release()
       }
     }
   }
