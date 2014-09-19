@@ -151,7 +151,7 @@ final class NettyManagedBuffer(buf: ByteBuf) extends ManagedBuffer {
 
   override def inputStream() = new ByteBufInputStream(buf)
 
-  private[network] override def convertToNetty(): AnyRef = buf
+  override def convertToNetty(): AnyRef = buf
 
   override def retain(): this.type = {
     buf.retain()

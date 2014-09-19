@@ -49,9 +49,11 @@ private[spark] class SortShuffleWriter[K, V, C](
   private val writeMetrics = new ShuffleWriteMetrics()
   context.taskMetrics.shuffleWriteMetrics = Some(writeMetrics)
 
-  /** Write a bunch of records to this task's output */
+  /**
+   * Write a bunch of records to this task's output.
+   * THIS IS A HACK. For the real write, see write0.
+   */
   override def write(records: Iterator[_ <: Product2[K, V]]): Unit = {
-    // THIS IS A HACK. For the real write, see write0.
     val (numRecords, pointers) = records.next().asInstanceOf[(Long, Array[Long])]
     assert(numRecords <= pointers.length)
 
@@ -103,7 +105,7 @@ private[spark] class SortShuffleWriter[K, V, C](
       partitionLengths.map(MapOutputTracker.compressSize))
   }
 
-
+  /** This is the normal write - but renamed so I can hack a short-circuited write. */
   def write0(records: Iterator[_ <: Product2[K, V]]): Unit = {
     if (dep.mapSideCombine) {
       if (!dep.aggregator.isDefined) {

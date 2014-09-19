@@ -17,6 +17,7 @@
 
 package org.apache.spark.shuffle.hash
 
+import org.apache.spark.network.ManagedBuffer
 import org.apache.spark.{InterruptibleIterator, TaskContext}
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.shuffle.{BaseShuffleHandle, ShuffleReader}
@@ -34,8 +35,14 @@ private[spark] class HashShuffleReader[K, C](
 
   private val dep = handle.dependency
 
+  /** THIS IS A HACK */
+  def read(): Iterator[Product2[K, C]] = {
+    BlockStoreShuffleFetcher.fetch[ManagedBuffer](handle.shuffleId, startPartition, context, null)
+      .map(buf => (0L, buf).asInstanceOf[(K, C)])
+  }
+
   /** Read the combined key-values for this reduce task */
-  override def read(): Iterator[Product2[K, C]] = {
+  def read0(): Iterator[Product2[K, C]] = {
     val ser = Serializer.getSerializer(dep.serializer)
     val iter = BlockStoreShuffleFetcher.fetch(handle.shuffleId, startPartition, context, ser)
 

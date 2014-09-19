@@ -287,14 +287,15 @@ final class ShuffleBlockFetcherIterator(
     val iteratorOpt: Option[Iterator[Any]] = if (result.failed) {
       None
     } else {
-      val is = blockManager.wrapForCompression(result.blockId, result.buf.inputStream())
-      val iter = serializer.newInstance().deserializeStream(is).asIterator
-      Some(CompletionIterator[Any, Iterator[Any]](iter, {
-        // Once the iterator is exhausted, release the buffer and set currentResult to null
-        // so we don't release it again in cleanup.
-        currentResult = null
-        result.buf.release()
-      }))
+//      val is = blockManager.wrapForCompression(result.blockId, result.buf.inputStream())
+//      val iter = serializer.newInstance().deserializeStream(is).asIterator
+//      Some(CompletionIterator[Any, Iterator[Any]](iter, {
+//        // Once the iterator is exhausted, release the buffer and set currentResult to null
+//        // so we don't release it again in cleanup.
+//        currentResult = null
+//        result.buf.release()
+//      }))
+      Some(Iterator(result.buf))
     }
 
     (result.blockId, iteratorOpt)
