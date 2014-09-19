@@ -139,8 +139,8 @@ object UnsafeSort extends Logging {
       is = new FileInputStream(inputFile)
       channel = is.getChannel()
       while (read < fileSize) {
-        sortBuffer.setIoBufAddress(baseAddress + read)
         // This should read read0 bytes directly into our buffer
+        sortBuffer.setIoBufAddress(baseAddress + read)
         val read0 = channel.read(sortBuffer.ioBuf)
         //UNSAFE.copyMemory(sortBuffer.ioBufAddress, baseAddress + read, read0)
         sortBuffer.ioBuf.clear()
