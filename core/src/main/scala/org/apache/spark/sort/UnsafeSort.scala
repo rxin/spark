@@ -164,12 +164,11 @@ object UnsafeSort extends Logging {
 
     startTime = System.currentTimeMillis()
     // Create the pointers array
-    var pos = 0
+    var pos = 0L
     var i = 0
     val pointers = sortBuffer.pointers
     while (i < sortBuffer.realNeed) {
       pointers(i) = baseAddress + pos
-      assert(pointers(i) != 0)  // TODO: remove this
       val left = pointers(i)
       assert(left >= sortBuffer.address && left < sortBuffer.address + sortBuffer.len,
         s"left is $left, start is ${sortBuffer.address}, len is ${sortBuffer.len}")
@@ -207,7 +206,7 @@ object UnsafeSort extends Logging {
         if (sortBuffers.get == null) {
           // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
           val capacity = recordsPerPartition + recordsPerPartition / 10
-          sortBuffers.set(new SortBuffer(capacity, numRecords.toInt))
+          sortBuffers.set(new SortBuffer(capacity, recordsPerPartition.toInt))
         }
 
         val sortBuffer = sortBuffers.get()
