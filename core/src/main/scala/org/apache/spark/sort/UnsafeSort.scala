@@ -80,7 +80,7 @@ object UnsafeSort extends Logging {
    *
    * @param capacity number of records the buffer can support. Each record is 100 bytes.
    */
-  final class SortBuffer(capacity: Long, val realNeed: Int) {
+  final class SortBuffer(capacity: Long) {
     require(capacity <= Int.MaxValue)
 
     /** size of the buffer, starting at [[address]] */
@@ -106,7 +106,7 @@ object UnsafeSort extends Logging {
     val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(4 * 1024 * 1024)
 
     /** list of pointers to each block, used for sorting. */
-    val pointers: Array[Long] = new Array[Long](realNeed)
+    val pointers: Array[Long] = new Array[Long](capacity.toInt)
 
     private[this] val ioBufAddressField = {
       val f = classOf[java.nio.Buffer].getDeclaredField("address")
@@ -166,9 +166,8 @@ object UnsafeSort extends Logging {
     var pos = 0L
     var i = 0
     val pointers = sortBuffer.pointers
-    while (i < sortBuffer.realNeed) {
+    while (pos < fileSize) {
       pointers(i) = baseAddress + pos
-      val left = pointers(i)
       pos += 100
       i += 1
     }
@@ -182,8 +181,8 @@ object UnsafeSort extends Logging {
     : RDD[(Long, Array[Long])] = {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
-    val numRecords = sizeInBytes / 100
-    val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
+    val totalRecords = sizeInBytes / 100
+    val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
 
     val hosts = Sort.readSlaves()
     new NodeLocalRDD[(Long, Array[Long])](sc, numParts, hosts) {
@@ -216,8 +215,8 @@ object UnsafeSort extends Logging {
           val sorter = new Sorter(new LongArraySorter).sort(
             sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
           val timeTaken = System.currentTimeMillis - startTime
-          logInfo(s"Sorting $numRecords records took $timeTaken ms")
-          println(s"Sorting $numRecords records took $timeTaken ms")
+          logInfo(s"Sorting $recordsPerPartition records took $timeTaken ms")
+          println(s"Sorting $recordsPerPartition records took $timeTaken ms")
           scala.Console.flush()
         }
 

@@ -96,7 +96,11 @@ object XOR {
     checksumOut.foreach { case (part, count, input, min, max) =>
       xor(checksum, input)
       numRecords += count
+    }
+    println("num records: " + numRecords)
+    println("xor checksum: " + checksum.toSeq)
 
+    checksumOut.foreach { case (part, count, input, min, max) =>
       println(s"part $part")
       println(s"min " + min.toSeq)
       println(s"max " + max.toSeq)
@@ -107,8 +111,6 @@ object XOR {
     }
 
     println("partitions are properly sorted")
-    println("num records: " + numRecords)
-    println("xor checksum: " + checksum.toSeq)
   }  // end of genSort
 
   def xor(checksum: Array[Byte], input: Array[Byte]) {
