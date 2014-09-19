@@ -215,7 +215,7 @@ object UnsafeSort extends Logging {
         {
           val startTime = System.currentTimeMillis
           val sorter = new Sorter(new LongArraySorter).sort(
-            sortBuffer.pointers, 0, numRecords.toInt, ord)
+            sortBuffer.pointers, 0, numRecords.toInt - 1, ord)
           val timeTaken = System.currentTimeMillis - startTime
           logInfo(s"Sorting $numRecords records took $timeTaken ms")
           println(s"Sorting $numRecords records took $timeTaken ms")
