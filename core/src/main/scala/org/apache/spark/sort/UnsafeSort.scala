@@ -6,7 +6,7 @@ import java.nio.channels.FileChannel
 
 import _root_.io.netty.buffer.ByteBuf
 import org.apache.spark._
-import org.apache.spark.network.NettyManagedBuffer
+import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
 import org.apache.spark.util.collection.{Sorter, SortDataFormat}
 
@@ -49,16 +49,32 @@ object UnsafeSort extends Logging {
       var offset = 0L
       var numShuffleBlocks = 0
       while (iter.hasNext) {
-        val buf = iter.next()._2
-        val bytebuf = buf.asInstanceOf[NettyManagedBuffer].convertToNetty().asInstanceOf[ByteBuf]
-        val len = bytebuf.readableBytes()
-        assert(len % 100 == 0)
-        assert(bytebuf.hasMemoryAddress)
+        val a = iter.next()._2.asInstanceOf[ManagedBuffer]
+        a match {
+          case buf: NettyManagedBuffer =>
+            val bytebuf = buf.convertToNetty().asInstanceOf[ByteBuf]
+            val len = bytebuf.readableBytes()
+            assert(len % 100 == 0)
+            assert(bytebuf.hasMemoryAddress)
 
-        val start = bytebuf.memoryAddress + bytebuf.readerIndex
-        UnsafeSort.UNSAFE.copyMemory(start, sortBuffer.address + offset, len)
-        offset += len
-        bytebuf.release()
+            val start = bytebuf.memoryAddress + bytebuf.readerIndex
+            UnsafeSort.UNSAFE.copyMemory(start, sortBuffer.address + offset, len)
+            offset += len
+            bytebuf.release()
+
+          case buf: FileSegmentManagedBuffer =>
+            val fs = new FileInputStream(buf.file)
+            val channel = fs.getChannel
+            channel.position(buf.offset)
+            assert(buf.length < 4 * 1024 * 1024)
+            sortBuffer.ioBuf.clear()
+            sortBuffer.setIoBufAddress(sortBuffer.address + offset)
+            val read0 = channel.read(sortBuffer.ioBuf)
+            offset += read0
+            channel.close()
+            fs.close()
+        }
+
         numShuffleBlocks += 1
       }
 
