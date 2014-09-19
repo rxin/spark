@@ -63,6 +63,8 @@ private[spark] class SortShuffleWriter[K, V, C](
     // Track location of each range in the output file
     val partitionLengths = new Array[Long](dep.partitioner.numPartitions)
 
+    val startTime = System.currentTimeMillis()
+
     var i = 0
     var lastPid = -1
     var writer: BlockObjectWriter = null
@@ -92,6 +94,10 @@ private[spark] class SortShuffleWriter[K, V, C](
     partitionLengths(lastPid) = writer.fileSegment().length
 
     shuffleBlockManager.writeIndexFile(dep.shuffleId, mapId, partitionLengths)
+
+    val timeTaken = System.currentTimeMillis() - startTime
+    logInfo("Time taken to write shuffle files: " + timeTaken)
+    println("Time taken to write shuffle files: " + timeTaken)
 
     mapStatus = new MapStatus(blockManager.blockManagerId,
       partitionLengths.map(MapOutputTracker.compressSize))
