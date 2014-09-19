@@ -121,7 +121,8 @@ object UnsafeSort extends Logging {
         if (!new File(baseFolder).exists()) {
           new File(baseFolder).mkdirs()
         }
-
+        logInfo(s"XXX Reduce: writing $numRecords records started $outputFile")
+        println(s"XXX Reduce: writing $numRecords records started $outputFile")
         val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
         val buf = new Array[Byte](100)
         val arrOffset = BYTE_ARRAY_BASE_OFFSET
@@ -166,7 +167,6 @@ object UnsafeSort extends Logging {
     /** address pointing to a block of memory off heap */
     val address: Long = {
       val blockSize = capacity * 100
-      logInfo(s"Allocating $blockSize bytes")
       val blockAddress = UNSAFE.allocateMemory(blockSize)
       logInfo(s"XXX Allocating $blockSize bytes ... allocated at $blockAddress")
       println(s"XXX Allocating $blockSize bytes ... allocated at $blockAddress")
@@ -203,7 +203,8 @@ object UnsafeSort extends Logging {
   val sortBuffers = new ThreadLocal[SortBuffer]
 
   def readFileIntoBuffer(inputFile: String, sortBuffer: SortBuffer) {
-    logInfo(s"reading file $inputFile")
+    logInfo(s"XXX start reading file $inputFile")
+    println(s"XXX start reading file $inputFile")
     val startTime = System.currentTimeMillis()
     val fileSize = new File(inputFile).length
     assert(fileSize % 100 == 0)
