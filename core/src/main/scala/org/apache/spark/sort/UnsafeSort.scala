@@ -92,6 +92,7 @@ object UnsafeSort extends Logging {
 
       val timeTaken = System.currentTimeMillis() - startTime
       logInfo(s"Reduce: took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
+      println(s"Reduce: took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
 
       buildLongPointers(sortBuffer, offset)
       val pointers = sortBuffer.pointers
@@ -104,31 +105,37 @@ object UnsafeSort extends Logging {
         val sorter = new Sorter(new LongArraySorter).sort(
           sortBuffer.pointers, 0, numRecords, ord)
         val timeTaken = System.currentTimeMillis - startTime
-        logInfo(s"Reduce: Sorting $recordsPerPartition records took $timeTaken ms")
-        println(s"Reduce: Sorting $recordsPerPartition records took $timeTaken ms")
+        logInfo(s"Reduce: Sorting $numRecords records took $timeTaken ms")
+        println(s"Reduce: Sorting $numRecords records took $timeTaken ms")
         scala.Console.flush()
       }
 
-      val volIndex = part % NUM_EBS
-      val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
-      if (!new File(baseFolder).exists()) {
-        new File(baseFolder).mkdirs()
-      }
+      val count: Long = {
+        val startTime = System.currentTimeMillis
+        val volIndex = part % NUM_EBS
+        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
+        if (!new File(baseFolder).exists()) {
+          new File(baseFolder).mkdirs()
+        }
 
-      val outputFile = s"$baseFolder/part$part.dat"
-
-      val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
-      val buf = new Array[Byte](100)
-      val arrOffset = BYTE_ARRAY_BASE_OFFSET
-      var i = 0
-      while (i < numRecords) {
-        val addr = pointers(i)
-        UNSAFE.copyMemory(null, addr, buf, arrOffset, 100)
-        os.write(buf)
-        i += 1
+        val outputFile = s"$baseFolder/part$part.dat"
+        val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
+        val buf = new Array[Byte](100)
+        val arrOffset = BYTE_ARRAY_BASE_OFFSET
+        var i = 0
+        while (i < numRecords) {
+          val addr = pointers(i)
+          UNSAFE.copyMemory(null, addr, buf, arrOffset, 100)
+          os.write(buf)
+          i += 1
+        }
+        os.close()
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo(s"Reduce: writing $numRecords records took $timeTaken ms")
+        println(s"Reduce: writing $numRecords records took $timeTaken ms")
+        i.toLong
       }
-      os.close()
-      Iterator(i)
+      Iterator(count)
     }.reduce(_ + _)
 
     println("total number of records: " + recordsAfterSort)
