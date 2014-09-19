@@ -3,6 +3,7 @@ package org.apache.spark.sort
 import java.io._
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
+import java.util.concurrent.atomic.AtomicInteger
 
 import _root_.io.netty.buffer.ByteBuf
 import org.apache.spark._
@@ -19,6 +20,8 @@ import org.apache.spark.util.collection.{Sorter, SortDataFormat}
 object UnsafeSort extends Logging {
 
   val NUM_EBS = 8
+
+  private[this] val numTasksOnExecutor = new AtomicInteger
 
   val ord = new UnsafeOrdering
 
@@ -114,8 +117,8 @@ object UnsafeSort extends Logging {
       val count: Long = {
         val startTime = System.currentTimeMillis
 
-        // Pick the EBS volume to write to. We pick a random one hoping to balance out the writes.
-        val volIndex = new java.util.Random().nextInt(NUM_EBS)
+        // Pick the EBS volume to write to. Rotate through the EBS volumes to balance.
+        val volIndex = numTasksOnExecutor.getAndIncrement() % NUM_EBS
         val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
         if (!new File(baseFolder).exists()) {
           new File(baseFolder).mkdirs()
@@ -255,6 +258,18 @@ object UnsafeSort extends Logging {
     scala.Console.flush()
   }
 
+  /** Find the input file in the 8 ebs volumes and return it. */
+  def findInputFile(sizeInGB: Int, numParts: Int, part: Int): String = {
+    var i = 0
+    while (i < NUM_EBS) {
+      if (new File(s"/vol$i/sort-${sizeInGB}g-$numParts/part$part.dat").exists()) {
+        return s"/vol$i/sort-${sizeInGB}g-$numParts/part$part.dat"
+      }
+      i += 1
+    }
+    throw new FileNotFoundException(s"/vol*/sort-${sizeInGB}g-$numParts/part$part.dat")
+  }
+
   def createInputRDDUnsafe(sc: SparkContext, sizeInGB: Int, numParts: Int)
     : RDD[(Long, Array[Long])] = {
 
@@ -266,15 +281,9 @@ object UnsafeSort extends Logging {
     new NodeLocalRDD[(Long, Array[Long])](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
-        val host = split.asInstanceOf[NodeLocalRDDPartition].node
 
-        val start = recordsPerPartition * part
-        val volIndex = part % NUM_EBS
-
-        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
-        val outputFile = s"$baseFolder/part$part.dat"
-
-        val fileSize = new File(outputFile).length
+        val inputFile = findInputFile(sizeInGB, numParts, part)
+        val fileSize = new File(inputFile).length
         assert(fileSize % 100 == 0)
 
         if (sortBuffers.get == null) {
@@ -285,7 +294,7 @@ object UnsafeSort extends Logging {
 
         val sortBuffer = sortBuffers.get()
 
-        readFileIntoBuffer(outputFile, sortBuffer)
+        readFileIntoBuffer(inputFile, sortBuffer)
         buildLongPointers(sortBuffer, fileSize)
 
         // Sort!!!
