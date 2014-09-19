@@ -48,14 +48,16 @@ object UnsafeSort extends Logging {
 
     val recordsAfterSort: Long = sorted.mapPartitionsWithIndex { (part, iter) =>
 
+      // Pick the EBS volume to write to. Rotate through the EBS volumes to balance.
+      val volIndex = numTasksOnExecutor.getAndIncrement() % NUM_EBS
+      val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
+      val outputFile = s"$baseFolder/part$part.dat"
+
       val startTime = System.currentTimeMillis()
       val sortBuffer = UnsafeSort.sortBuffers.get()
       assert(sortBuffer != null)
       var offset = 0L
       var numShuffleBlocks = 0
-
-      println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-      scala.Console.flush()
 
       while (iter.hasNext) {
         val a = iter.next()._2.asInstanceOf[ManagedBuffer]
@@ -95,8 +97,8 @@ object UnsafeSort extends Logging {
       }
 
       val timeTaken = System.currentTimeMillis() - startTime
-      logInfo(s"XXX Reduce: took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
-      println(s"XXX Reduce: took $timeTaken ms to fetch $numShuffleBlocks shuffle blocks $offset bytes")
+      logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
+      println(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
 
       buildLongPointers(sortBuffer, offset)
       val pointers = sortBuffer.pointers
@@ -109,22 +111,17 @@ object UnsafeSort extends Logging {
         val sorter = new Sorter(new LongArraySorter).sort(
           sortBuffer.pointers, 0, numRecords, ord)
         val timeTaken = System.currentTimeMillis - startTime
-        logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms")
-        println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms")
+        logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
+        println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
         scala.Console.flush()
       }
 
       val count: Long = {
         val startTime = System.currentTimeMillis
-
-        // Pick the EBS volume to write to. Rotate through the EBS volumes to balance.
-        val volIndex = numTasksOnExecutor.getAndIncrement() % NUM_EBS
-        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
         if (!new File(baseFolder).exists()) {
           new File(baseFolder).mkdirs()
         }
 
-        val outputFile = s"$baseFolder/part$part.dat"
         val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
         val buf = new Array[Byte](100)
         val arrOffset = BYTE_ARRAY_BASE_OFFSET
@@ -137,8 +134,8 @@ object UnsafeSort extends Logging {
         }
         os.close()
         val timeTaken = System.currentTimeMillis - startTime
-        logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms")
-        println(s"XXX Reduce: writing $numRecords records took $timeTaken ms")
+        logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
+        println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
         i.toLong
       }
       Iterator(count)
