@@ -13,7 +13,8 @@ object XOR {
 
   def main(args: Array[String]): Unit = {
     val folderName = args(0)  // sort-10g-100 or sort-10g-100-out
-    val sc = new SparkContext(new SparkConf())
+    val sc = new SparkContext(
+        new SparkConf().setAppName(s"XOR - $folderName"))
     validate(sc, folderName)
   }
 

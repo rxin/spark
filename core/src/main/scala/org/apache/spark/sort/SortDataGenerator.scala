@@ -10,7 +10,8 @@ object SortDataGenerator {
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    val sc = new SparkContext(new SparkConf())
+    val sc = new SparkContext(
+      new SparkConf().setAppName(s"DataGenerator - $sizeInGB GB - $numParts partitions"))
     genSort(sc, sizeInGB, numParts)
   }
 

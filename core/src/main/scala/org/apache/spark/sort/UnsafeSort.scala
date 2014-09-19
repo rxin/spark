@@ -32,7 +32,8 @@ object UnsafeSort extends Logging {
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
-    val sc = new SparkContext(new SparkConf())
+    val sc = new SparkContext(
+      new SparkConf().setAppName(s"UnsafeSort - $sizeInGB GB - $numParts partitions"))
     val input = createInputRDDUnsafe(sc, sizeInGB, numParts)
 
     val hosts = Sort.readSlaves()
