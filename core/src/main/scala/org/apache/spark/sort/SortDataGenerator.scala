@@ -1,11 +1,14 @@
 package org.apache.spark.sort
 
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 
 import org.apache.spark.{TaskContext, Partition, SparkConf, SparkContext}
 
 
 object SortDataGenerator {
+
+  private[this] val numTasksOnExecutor = new AtomicInteger
 
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
@@ -29,7 +32,7 @@ object SortDataGenerator {
         val host = split.asInstanceOf[NodeLocalRDDPartition].node
 
         val start = recordsPerPartition * part
-        val volIndex = part % numEbsVols
+        val volIndex = numTasksOnExecutor.getAndIncrement() % numEbsVols
 
         val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
         if (!new File(baseFolder).exists()) {
