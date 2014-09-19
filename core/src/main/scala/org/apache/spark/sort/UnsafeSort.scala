@@ -139,11 +139,10 @@ object UnsafeSort extends Logging {
       is = new FileInputStream(inputFile)
       channel = is.getChannel()
       while (read < fileSize) {
-        assert(read < sortBuffer.len)  // TODO: remove this
-        //sortBuffer.setIoBufAddress(baseAddress + read)
+        sortBuffer.setIoBufAddress(baseAddress + read)
         // This should read read0 bytes directly into our buffer
         val read0 = channel.read(sortBuffer.ioBuf)
-        UNSAFE.copyMemory(sortBuffer.ioBufAddress, baseAddress + read, read0)
+        //UNSAFE.copyMemory(sortBuffer.ioBufAddress, baseAddress + read, read0)
         sortBuffer.ioBuf.clear()
         read += read0
       }
@@ -170,8 +169,6 @@ object UnsafeSort extends Logging {
     while (i < sortBuffer.realNeed) {
       pointers(i) = baseAddress + pos
       val left = pointers(i)
-      assert(left >= sortBuffer.address && left < sortBuffer.address + sortBuffer.len,
-        s"left is $left, start is ${sortBuffer.address}, len is ${sortBuffer.len}")
       pos += 100
       i += 1
     }
@@ -217,7 +214,7 @@ object UnsafeSort extends Logging {
         {
           val startTime = System.currentTimeMillis
           val sorter = new Sorter(new LongArraySorter).sort(
-            sortBuffer.pointers, 0, numRecords.toInt - 1, ord)
+            sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
           val timeTaken = System.currentTimeMillis - startTime
           logInfo(s"Sorting $numRecords records took $timeTaken ms")
           println(s"Sorting $numRecords records took $timeTaken ms")
@@ -234,10 +231,6 @@ object UnsafeSort extends Logging {
   final class LongArraySorter extends SortDataFormat[Long, Array[Long]] {
     /** Return the sort key for the element at the given index. */
     override protected def getKey(data: Array[Long], pos: Int): Long = data(pos)
-//      val ret = data(pos)
-//      assert(ret != 0, s"data($pos) is 0")  // TODO: remove this
-//      ret
-//    }
 
     /** Swap two elements. */
     override protected def swap(data: Array[Long], pos0: Int, pos1: Int) {
