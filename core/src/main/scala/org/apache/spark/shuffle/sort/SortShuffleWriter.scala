@@ -22,7 +22,7 @@ import org.apache.spark.sort.UnsafeSerializer
 import org.apache.spark.util.MutablePair
 import org.apache.spark.{MapOutputTracker, SparkEnv, Logging, TaskContext}
 import org.apache.spark.executor.ShuffleWriteMetrics
-import org.apache.spark.scheduler.MapStatus
+import org.apache.spark.scheduler.{LargeMapStatus, MapStatus}
 import org.apache.spark.shuffle.{IndexShuffleBlockManager, ShuffleWriter, BaseShuffleHandle}
 import org.apache.spark.storage.{DiskBlockObjectWriter, BlockObjectWriter, ShuffleBlockId}
 import org.apache.spark.util.collection.ExternalSorter
@@ -106,8 +106,9 @@ private[spark] class SortShuffleWriter[K, V, C](
     logInfo("XXX Time taken to write shuffle files: " + timeTaken)
     println("XXX Time taken to write shuffle files: " + timeTaken)
 
-    mapStatus = new MapStatus(blockManager.blockManagerId,
-      partitionLengths.map(MapOutputTracker.compressSize))
+    val averageBlockSize: Long = partitionLengths.sum / partitionLengths.length
+    mapStatus = new LargeMapStatus(blockManager.blockManagerId, averageBlockSize)
+    //  partitionLengths.map(MapOutputTracker.compressSize))
   }
 
   /** This is the normal write - but renamed so I can hack a short-circuited write. */

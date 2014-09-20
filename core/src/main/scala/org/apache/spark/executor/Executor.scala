@@ -99,7 +99,7 @@ private[spark] class Executor(
 
   // Start worker thread pool
   val threadPool = Utils.newDaemonFixedThreadPool(
-    sys.env("SPARK_WORKER_CORES").toInt, "Executor task launch worker")
+    sys.env.getOrElse("SPARK_WORKER_CORES", "1").toInt, "Executor task launch worker")
 
   // Maintains the list of running tasks.
   private val runningTasks = new ConcurrentHashMap[Long, TaskRunner]

@@ -19,6 +19,7 @@ package org.apache.spark.scheduler
 
 import java.io.{Externalizable, ObjectInput, ObjectOutput}
 
+import org.apache.spark.MapOutputTracker
 import org.apache.spark.storage.BlockManagerId
 
 /**
@@ -31,6 +32,10 @@ private[spark] class MapStatus(var location: BlockManagerId, var compressedSizes
 
   def this() = this(null, null)  // For deserialization only
 
+  def getSizeForBlock(reduceId: Int): Long = {
+    MapOutputTracker.decompressSize(compressedSizes(reduceId))
+  }
+
   def writeExternal(out: ObjectOutput) {
     location.writeExternal(out)
     out.writeInt(compressedSizes.length)
@@ -41,5 +46,25 @@ private[spark] class MapStatus(var location: BlockManagerId, var compressedSizes
     location = BlockManagerId(in)
     compressedSizes = new Array[Byte](in.readInt())
     in.readFully(compressedSizes)
+  }
+}
+
+
+private[spark] class LargeMapStatus(loc: BlockManagerId, var averageSize: Long)
+  extends MapStatus(loc, null) with Externalizable {
+
+  def this() = this(null, 0L)
+
+  override def getSizeForBlock(reduceId: Int): Long = averageSize
+
+  override def writeExternal(out: ObjectOutput) {
+    location.writeExternal(out)
+    out.writeByte(MapOutputTracker.compressSize(averageSize))
+  }
+
+  override def readExternal(in: ObjectInput) {
+    location = BlockManagerId(in)
+    val sizeInByte = in.readByte()
+    averageSize = MapOutputTracker.decompressSize(sizeInByte)
   }
 }

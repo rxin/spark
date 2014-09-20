@@ -379,7 +379,7 @@ private[spark] object MapOutputTracker {
           throw new MetadataFetchFailedException(
             shuffleId, reduceId, "Missing an output location for shuffle " + shuffleId)
         } else {
-          (status.location, decompressSize(status.compressedSizes(reduceId)))
+          (status.location, status.getSizeForBlock(reduceId))
         }
     }
   }
