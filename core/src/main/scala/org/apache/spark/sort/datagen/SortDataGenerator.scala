@@ -16,10 +16,12 @@ object SortDataGenerator {
     val numParts = args(1).toInt
     val sc = new SparkContext(
       new SparkConf().setAppName(s"DataGenerator - $sizeInGB GB - $numParts partitions"))
-    genSort(sc, sizeInGB, numParts)
+
+    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts")
+    genSort(sc, sizeInGB, numParts, dirs)
   }
 
-  def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, numEbsVols: Int = 8): Unit = {
+  def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, dirs: Seq[String]): Unit = {
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
@@ -30,11 +32,11 @@ object SortDataGenerator {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
         val host = split.asInstanceOf[NodeLocalRDDPartition].node
-        val volIndex = numTasksOnExecutor.getAndIncrement() % numEbsVols
+        val baseFolder = dirs(numTasksOnExecutor.getAndIncrement() % dirs.size)
 
         val iter = generatePartition(part, recordsPerPartition.toInt)
 
-        val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
+        //val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
         if (!new File(baseFolder).exists()) {
           new File(baseFolder).mkdirs()
         }
