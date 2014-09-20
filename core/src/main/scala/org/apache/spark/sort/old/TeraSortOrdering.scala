@@ -1,5 +1,6 @@
-package org.apache.spark.sort
+package org.apache.spark.sort.old
 
+import org.apache.spark.sort.UnsafeSort
 
 /**
  * Sort ordering for comparing 10-byte arrays.
@@ -7,7 +8,7 @@ package org.apache.spark.sort
  * http://grepcode.com/file/repo1.maven.org/maven2/com.google.guava/guava/17.0/com/google/common/primitives/UnsignedBytes.java#298
  */
 class TeraSortOrdering extends Ordering[Array[Byte]] {
-  import TeraSortOrdering._
+  import org.apache.spark.sort.old.TeraSortOrdering._
 
   override def compare(left: Array[Byte], right: Array[Byte]): Int = {
     val lw: Long = UNSAFE.getLong(left, BYTE_ARRAY_BASE_OFFSET)

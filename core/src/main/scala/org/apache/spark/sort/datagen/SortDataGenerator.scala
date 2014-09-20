@@ -3,7 +3,8 @@ package org.apache.spark.sort.datagen
 import java.io.{FileOutputStream, BufferedOutputStream, File}
 import java.util.concurrent.atomic.AtomicInteger
 
-import org.apache.spark.sort.{NodeLocalRDDPartition, NodeLocalRDD, Sort}
+import org.apache.spark.sort.old.Sort
+import org.apache.spark.sort.{NodeLocalRDDPartition, NodeLocalRDD}
 import org.apache.spark.{TaskContext, Partition, SparkConf, SparkContext}
 
 
@@ -14,10 +15,11 @@ object SortDataGenerator {
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    val sc = new SparkContext(
-      new SparkConf().setAppName(s"DataGenerator - $sizeInGB GB - $numParts partitions"))
-
     val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts")
+
+    val sc = new SparkContext(
+      new SparkConf().setAppName(s"DataGeneratorJava - $sizeInGB GB - $numParts parts - $dirs"))
+
     genSort(sc, sizeInGB, numParts, dirs)
   }
 

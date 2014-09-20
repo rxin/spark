@@ -1,4 +1,4 @@
-package org.apache.spark.sort
+package org.apache.spark.sort.old
 
 import com.google.common.primitives.Longs
 import org.apache.spark.Partitioner
@@ -9,7 +9,7 @@ import org.apache.spark.Partitioner
  */
 case class TeraSortPartitioner(numPartitions: Int) extends Partitioner {
 
-  import TeraSortPartitioner._
+  import org.apache.spark.sort.old.TeraSortPartitioner._
 
   val rangePerPart = (max - min) / numPartitions
 

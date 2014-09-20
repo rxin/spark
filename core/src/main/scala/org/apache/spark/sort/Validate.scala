@@ -3,6 +3,7 @@ package org.apache.spark.sort
 import java.io._
 
 import com.google.common.primitives.UnsignedBytes
+import org.apache.spark.sort.old.Sort
 
 import scala.sys.process._
 
