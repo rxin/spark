@@ -26,12 +26,17 @@ object GenerateDataAndSort extends Logging {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
 
+    val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
+    val numRecords = sizeInBytes / 100
+    val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
+
     val sc = new SparkContext(
       new SparkConf().setAppName(s"GenerateDataAndSort - $sizeInGB GB - $numParts partitions"))
     val input = createInputRDDUnsafe(sc, sizeInGB, numParts)
 
     val partitioner = new UnsafePartitioner(numParts)
     val shuffled = new ShuffledRDD(input, partitioner)
+      .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
     val recordsAfterSort: Long = shuffled.mapPartitionsWithIndex { (part, iter) =>
 
@@ -47,7 +52,10 @@ object GenerateDataAndSort extends Logging {
       var numShuffleBlocks = 0
 
       while (iter.hasNext) {
-        val a = iter.next()._2.asInstanceOf[ManagedBuffer]
+        val n = iter.next()
+        val a = n._2.asInstanceOf[ManagedBuffer]
+        assert(a.size % 100 == 0, s"shuffle block size ${a.size} is wrong")
+
         a match {
           case buf: NettyManagedBuffer =>
             val bytebuf = buf.convertToNetty().asInstanceOf[ByteBuf]
@@ -82,7 +90,7 @@ object GenerateDataAndSort extends Logging {
       logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
       println(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
 
-      //buildLongPointers(sortBuffer, offset)
+      buildLongPointers(sortBuffer, offset)
 
       val numRecords = (offset / 100).toInt
 
@@ -97,7 +105,7 @@ object GenerateDataAndSort extends Logging {
         scala.Console.flush()
       }
 
-      Iterator(numRecords)
+      Iterator(numRecords.toLong)
     }.reduce(_ + _)
 
     println("total number of records: " + recordsAfterSort)
@@ -187,44 +195,45 @@ object GenerateDataAndSort extends Logging {
     val totalRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
 
-    val hosts = Sort.readSlaves()
-    new NodeLocalRDD[(Long, Array[Long])](sc, numParts, hosts) {
-      override def compute(split: Partition, context: TaskContext) = {
-        val part = split.index
+    sc.parallelize(1 to numParts, numParts).mapPartitionsWithIndex { (part, iter) =>
+      val iter = datagen.SortDataGenerator.generatePartition(part, recordsPerPartition.toInt)
 
-        val iter = datagen.SortDataGenerator.generatePartition(part, recordsPerPartition.toInt)
+      if (sortBuffers.get == null) {
+        // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
+        val capacity = recordsPerPartition + recordsPerPartition / 10
+        sortBuffers.set(new SortBuffer(capacity))
+      }
 
-        if (sortBuffers.get == null) {
-          // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
-          val capacity = recordsPerPartition + recordsPerPartition / 10
-          sortBuffers.set(new SortBuffer(capacity))
-        }
+      val sortBuffer = sortBuffers.get()
+      var addr: Long = sortBuffer.address
 
-        val sortBuffer = sortBuffers.get()
-        var addr: Long = sortBuffer.address
-
+      {
+        val startTime = System.currentTimeMillis
         while (iter.hasNext) {
           val buf = iter.next()
           UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, addr, 100)
           addr += 100
         }
-
-        assert(addr - sortBuffer.address == 100L * recordsPerPartition)
-
-        // Sort!!!
-        {
-          val startTime = System.currentTimeMillis
-          //val sorter = new Sorter(new LongArraySorter).sort(
-          //  sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
-          sortWithKeys(sortBuffer, 0, recordsPerPartition.toInt)
-          val timeTaken = System.currentTimeMillis - startTime
-          logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
-          println(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
-          scala.Console.flush()
-        }
-
-        Iterator((recordsPerPartition, sortBuffer.pointers))
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo(s"XXX creating $recordsPerPartition records took $timeTaken ms")
       }
+      assert(addr - sortBuffer.address == 100L * recordsPerPartition)
+
+      buildLongPointers(sortBuffer, addr - sortBuffer.address)
+
+      // Sort!!!
+      {
+        val startTime = System.currentTimeMillis
+        //val sorter = new Sorter(new LongArraySorter).sort(
+        //  sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
+        sortWithKeys(sortBuffer, 0, recordsPerPartition.toInt)
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
+        println(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
+        scala.Console.flush()
+      }
+
+      Iterator((recordsPerPartition, sortBuffer.pointers))
     }
   }
 

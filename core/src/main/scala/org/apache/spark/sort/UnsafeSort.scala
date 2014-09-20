@@ -25,12 +25,17 @@ object UnsafeSort extends Logging {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
 
+    val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
+    val numRecords = sizeInBytes / 100
+    val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
+
     val sc = new SparkContext(
       new SparkConf().setAppName(s"UnsafeSort - $sizeInGB GB - $numParts partitions"))
     val input = createInputRDDUnsafe(sc, sizeInGB, numParts)
 
     val partitioner = new UnsafePartitioner(numParts)
     val shuffled = new ShuffledRDD(input, partitioner)
+      .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
     val recordsAfterSort: Long = shuffled.mapPartitionsWithIndex { (part, iter) =>
 
@@ -46,7 +51,9 @@ object UnsafeSort extends Logging {
       var numShuffleBlocks = 0
 
       while (iter.hasNext) {
-        val a = iter.next()._2.asInstanceOf[ManagedBuffer]
+        val n = iter.next()
+        val a = n._2.asInstanceOf[ManagedBuffer]
+        assert(a.size % 100 == 0, s"shuffle block size ${a.size} is wrong")
         a match {
           case buf: NettyManagedBuffer =>
             val bytebuf = buf.convertToNetty().asInstanceOf[ByteBuf]
@@ -81,7 +88,7 @@ object UnsafeSort extends Logging {
       logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
       println(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
 
-      //buildLongPointers(sortBuffer, offset)
+      buildLongPointers(sortBuffer, offset)
       val pointers = sortBuffer.pointers
 
       val numRecords = (offset / 100).toInt
@@ -276,7 +283,7 @@ object UnsafeSort extends Logging {
         val sortBuffer = sortBuffers.get()
 
         readFileIntoBuffer(inputFile, sortBuffer)
-        //buildLongPointers(sortBuffer, fileSize)
+        buildLongPointers(sortBuffer, fileSize)
 
         // Sort!!!
         {

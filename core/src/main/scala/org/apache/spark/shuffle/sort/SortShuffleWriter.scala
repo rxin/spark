@@ -18,12 +18,13 @@
 package org.apache.spark.shuffle.sort
 
 import org.apache.spark.serializer.Serializer
+import org.apache.spark.sort.UnsafeSerializer
 import org.apache.spark.util.MutablePair
 import org.apache.spark.{MapOutputTracker, SparkEnv, Logging, TaskContext}
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.scheduler.MapStatus
 import org.apache.spark.shuffle.{IndexShuffleBlockManager, ShuffleWriter, BaseShuffleHandle}
-import org.apache.spark.storage.{BlockObjectWriter, ShuffleBlockId}
+import org.apache.spark.storage.{DiskBlockObjectWriter, BlockObjectWriter, ShuffleBlockId}
 import org.apache.spark.util.collection.ExternalSorter
 
 private[spark] class SortShuffleWriter[K, V, C](
@@ -79,6 +80,8 @@ private[spark] class SortShuffleWriter[K, V, C](
         if (writer != null) {
           writer.commitAndClose()
           partitionLengths(lastPid) = writer.fileSegment().length
+          assert(partitionLengths(lastPid) % 100 == 0,
+            s"invalid segment length ${writer.fileSegment()}")
         }
 
         writer = blockManager.getDiskWriter(
@@ -94,6 +97,8 @@ private[spark] class SortShuffleWriter[K, V, C](
     // Handle the last partition
     writer.commitAndClose()
     partitionLengths(lastPid) = writer.fileSegment().length
+    assert(partitionLengths(lastPid) % 100 == 0,
+      s"invalid segment length ${writer.fileSegment()}")
 
     shuffleBlockManager.writeIndexFile(dep.shuffleId, mapId, partitionLengths)
 
