@@ -2,7 +2,6 @@ package org.apache.spark.sort
 
 import java.io._
 import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
 import java.util.concurrent.atomic.AtomicInteger
 
 import _root_.io.netty.buffer.ByteBuf
@@ -13,9 +12,11 @@ import org.apache.spark.util.collection.{Sorter, SortDataFormat}
 
 
 /**
- * A version of the sort code that uses Unsafe to allocate off-heap blocks.
+ * Generate data on the fly, sort, and don't write the output out.
+ *
+ * This is for testing shuffling and sorting without input/output.
  */
-object UnsafeSort extends Logging {
+object GenerateDataAndSort extends Logging {
 
   val NUM_EBS = 8
 
@@ -26,7 +27,7 @@ object UnsafeSort extends Logging {
     val numParts = args(1).toInt
 
     val sc = new SparkContext(
-      new SparkConf().setAppName(s"UnsafeSort - $sizeInGB GB - $numParts partitions"))
+      new SparkConf().setAppName(s"GenerateDataAndSort - $sizeInGB GB - $numParts partitions"))
     val input = createInputRDDUnsafe(sc, sizeInGB, numParts)
 
     val partitioner = new UnsafePartitioner(numParts)
@@ -40,7 +41,7 @@ object UnsafeSort extends Logging {
       val outputFile = s"$baseFolder/part$part.dat"
 
       val startTime = System.currentTimeMillis()
-      val sortBuffer = UnsafeSort.sortBuffers.get()
+      val sortBuffer = sortBuffers.get()
       assert(sortBuffer != null)
       var offset = 0L
       var numShuffleBlocks = 0
@@ -82,7 +83,6 @@ object UnsafeSort extends Logging {
       println(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
 
       //buildLongPointers(sortBuffer, offset)
-      val pointers = sortBuffer.pointers
 
       val numRecords = (offset / 100).toInt
 
@@ -97,30 +97,7 @@ object UnsafeSort extends Logging {
         scala.Console.flush()
       }
 
-      val count: Long = {
-        val startTime = System.currentTimeMillis
-        if (!new File(baseFolder).exists()) {
-          new File(baseFolder).mkdirs()
-        }
-        logInfo(s"XXX Reduce: writing $numRecords records started $outputFile")
-        println(s"XXX Reduce: writing $numRecords records started $outputFile")
-        val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
-        val buf = new Array[Byte](100)
-        val arrOffset = BYTE_ARRAY_BASE_OFFSET
-        var i = 0
-        while (i < numRecords) {
-          val addr = pointers(i)
-          UNSAFE.copyMemory(null, addr, buf, arrOffset, 100)
-          os.write(buf)
-          i += 1
-        }
-        os.close()
-        val timeTaken = System.currentTimeMillis - startTime
-        logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
-        println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
-        i.toLong
-      }
-      Iterator(count)
+      Iterator(numRecords)
     }.reduce(_ + _)
 
     println("total number of records: " + recordsAfterSort)
@@ -186,42 +163,6 @@ object UnsafeSort extends Logging {
   /** A thread local variable storing a pointer to the buffer allocated off-heap. */
   val sortBuffers = new ThreadLocal[SortBuffer]
 
-  def readFileIntoBuffer(inputFile: String, sortBuffer: SortBuffer) {
-    logInfo(s"XXX start reading file $inputFile")
-    println(s"XXX start reading file $inputFile")
-    val startTime = System.currentTimeMillis()
-    val fileSize = new File(inputFile).length
-    assert(fileSize % 100 == 0)
-
-    val baseAddress: Long = sortBuffer.address
-    var is: FileInputStream = null
-    var channel: FileChannel = null
-    var read = 0L
-    try {
-      is = new FileInputStream(inputFile)
-      channel = is.getChannel()
-      while (read < fileSize) {
-        // This should read read0 bytes directly into our buffer
-        sortBuffer.setIoBufAddress(baseAddress + read)
-        val read0 = channel.read(sortBuffer.ioBuf)
-        sortBuffer.ioBuf.clear()
-        read += read0
-      }
-    } finally {
-      if (channel != null) {
-        channel.close()
-      }
-      if (is != null) {
-        is.close()
-      }
-    }
-    val timeTaken = System.currentTimeMillis() - startTime
-    logInfo(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
-    println(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
-    scala.Console.flush()
-    assert(read == fileSize)
-  }
-
   def buildLongPointers(sortBuffer: SortBuffer, bufferSize: Long) {
     val startTime = System.currentTimeMillis()
     // Create the pointers array
@@ -239,20 +180,8 @@ object UnsafeSort extends Logging {
     scala.Console.flush()
   }
 
-  /** Find the input file in the 8 ebs volumes and return it. */
-  def findInputFile(sizeInGB: Int, numParts: Int, part: Int): String = {
-    var i = 0
-    while (i < NUM_EBS) {
-      if (new File(s"/vol$i/sort-${sizeInGB}g-$numParts/part$part.dat").exists()) {
-        return s"/vol$i/sort-${sizeInGB}g-$numParts/part$part.dat"
-      }
-      i += 1
-    }
-    throw new FileNotFoundException(s"/vol*/sort-${sizeInGB}g-$numParts/part$part.dat")
-  }
-
   def createInputRDDUnsafe(sc: SparkContext, sizeInGB: Int, numParts: Int)
-    : RDD[(Long, Array[Long])] = {
+  : RDD[(Long, Array[Long])] = {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val totalRecords = sizeInBytes / 100
@@ -263,9 +192,7 @@ object UnsafeSort extends Logging {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
 
-        val inputFile = findInputFile(sizeInGB, numParts, part)
-        val fileSize = new File(inputFile).length
-        assert(fileSize % 100 == 0)
+        val iter = datagen.SortDataGenerator.generatePartition(part, recordsPerPartition.toInt)
 
         if (sortBuffers.get == null) {
           // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
@@ -274,14 +201,21 @@ object UnsafeSort extends Logging {
         }
 
         val sortBuffer = sortBuffers.get()
+        var addr: Long = sortBuffer.address
 
-        readFileIntoBuffer(inputFile, sortBuffer)
-        //buildLongPointers(sortBuffer, fileSize)
+        while (iter.hasNext) {
+          val buf = iter.next()
+          UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, addr, 100)
+          addr += 100
+        }
+
+        assert(addr - sortBuffer.address == 100L * recordsPerPartition)
 
         // Sort!!!
         {
           val startTime = System.currentTimeMillis
-          //new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
+          //val sorter = new Sorter(new LongArraySorter).sort(
+          //  sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
           sortWithKeys(sortBuffer, 0, recordsPerPartition.toInt)
           val timeTaken = System.currentTimeMillis - startTime
           logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")

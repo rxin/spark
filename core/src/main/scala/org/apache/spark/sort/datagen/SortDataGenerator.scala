@@ -30,38 +30,21 @@ object SortDataGenerator {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
         val host = split.asInstanceOf[NodeLocalRDDPartition].node
-
-        val start = recordsPerPartition * part
         val volIndex = numTasksOnExecutor.getAndIncrement() % numEbsVols
+
+        val iter = generatePartition(part, recordsPerPartition.toInt)
 
         val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts"
         if (!new File(baseFolder).exists()) {
           new File(baseFolder).mkdirs()
         }
-
         val outputFile = s"$baseFolder/part$part.dat"
 
         val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
-
-        val one = new Unsigned16(1)
-        val firstRecordNumber = new Unsigned16(part.toLong * recordsPerPartition)
-        val recordsToGenerate = new Unsigned16(recordsPerPartition)
-        val recordNumber = new Unsigned16(firstRecordNumber)
-        val lastRecordNumber = new Unsigned16(firstRecordNumber)
-        lastRecordNumber.add(recordsToGenerate)
-
-        val rand = Random16.skipAhead(firstRecordNumber)
-        val buf: Array[Byte] = new Array[Byte](100)
-
-        var i = 0
-        while (i < recordsPerPartition) {
-          Random16.nextRand(rand)
-          generateRecord(buf, rand, recordNumber)
+        while (iter.hasNext) {
+          val buf = iter.next()
           os.write(buf)
-          recordNumber.add(one)
-          i += 1
         }
-
         os.close()
 
         Iterator((host, part, outputFile))
@@ -81,12 +64,35 @@ object SortDataGenerator {
     writer.close()
   }  // end of genSort
 
+  def generatePartition(part: Int, recordsPerPartition: Int): Iterator[Array[Byte]] = {
+    val one = new Unsigned16(1)
+    val firstRecordNumber = new Unsigned16(part.toLong * recordsPerPartition)
+
+    new Iterator[Array[Byte]] {
+      private[this] val buf = new Array[Byte](100)
+      private[this] val rand = Random16.skipAhead(firstRecordNumber)
+      private[this] val recordNumber = new Unsigned16(firstRecordNumber)
+
+      private[this] var i = 0
+      private[this] val recordsPerPartition0 = recordsPerPartition
+
+      override def hasNext: Boolean = i < recordsPerPartition0
+      override def next(): Array[Byte] = {
+        Random16.nextRand(rand)
+        generateRecord(buf, rand, recordNumber)
+        recordNumber.add(one)
+        i += 1
+        buf
+      }
+    }
+  }
+
   /**
    * Generate a binary record suitable for all sort benchmarks except PennySort.
    *
    * @param recBuf record to return
    */
-  def generateRecord(recBuf: Array[Byte], rand: Unsigned16, recordNumber: Unsigned16): Unit = {
+  private def generateRecord(recBuf: Array[Byte], rand: Unsigned16, recordNumber: Unsigned16): Unit = {
     // Generate the 10-byte key using the high 10 bytes of the 128-bit random number
     var i = 0
     while (i < 10) {
