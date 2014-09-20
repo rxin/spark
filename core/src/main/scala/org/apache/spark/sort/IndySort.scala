@@ -27,6 +27,8 @@ object IndySort extends Logging {
   private[this] val semaphores = java.util.Collections.synchronizedMap(
     new java.util.HashMap[String, Semaphore])
 
+  private[this] val networkSemaphore = new Semaphore(8)
+
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
@@ -54,6 +56,12 @@ object IndySort extends Logging {
       var offset = 0L
       var numShuffleBlocks = 0
 
+      {
+        logInfo(s"trying to acquire semaphore for network")
+        val startTime = System.currentTimeMillis
+        networkSemaphore.acquire()
+        logInfo(s"acquired semaphore for network took " + (System.currentTimeMillis - startTime) + " ms")
+      }
       while (iter.hasNext) {
         val n = iter.next()
         val a = n._2.asInstanceOf[ManagedBuffer]
@@ -87,6 +95,8 @@ object IndySort extends Logging {
 
         numShuffleBlocks += 1
       }
+
+      networkSemaphore.release()
 
       val timeTaken = System.currentTimeMillis() - startTime
       logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
