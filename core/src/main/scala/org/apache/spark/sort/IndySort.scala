@@ -9,7 +9,10 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import _root_.io.netty.buffer.ByteBuf
+import io.netty.buffer.ByteBuf
+
+import org.apache.hadoop.io.nativeio.NativeIO
+
 import org.apache.spark._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
@@ -56,12 +59,12 @@ object IndySort extends Logging {
       var offset = 0L
       var numShuffleBlocks = 0
 
-      {
-        logInfo(s"trying to acquire semaphore for network")
-        val startTime = System.currentTimeMillis
-        networkSemaphore.acquire()
-        logInfo(s"acquired semaphore for network took " + (System.currentTimeMillis - startTime) + " ms")
-      }
+//      {
+//        logInfo(s"trying to acquire semaphore for network")
+//        val startTime = System.currentTimeMillis
+//        networkSemaphore.acquire()
+//        logInfo(s"acquired semaphore for network took " + (System.currentTimeMillis - startTime) + " ms")
+//      }
       while (iter.hasNext) {
         val n = iter.next()
         val a = n._2.asInstanceOf[ManagedBuffer]
@@ -95,8 +98,8 @@ object IndySort extends Logging {
 
         numShuffleBlocks += 1
       }
-
-      networkSemaphore.release()
+//
+//      networkSemaphore.release()
 
       val timeTaken = System.currentTimeMillis() - startTime
       logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
@@ -228,6 +231,15 @@ object IndySort extends Logging {
         sortBuffer.ioBuf.clear()
         read += read0
       }
+
+      // Drop from buffer cache
+      NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
+        inputFile,
+        is.getFD,
+        0,
+        fileSize,
+        NativeIO.POSIX.POSIX_FADV_DONTNEED)
+
     } finally {
       if (channel != null) {
         channel.close()

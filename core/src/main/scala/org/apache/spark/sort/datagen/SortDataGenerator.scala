@@ -3,6 +3,7 @@ package org.apache.spark.sort.datagen
 import java.io.{FileOutputStream, BufferedOutputStream, File}
 import java.util.concurrent.atomic.AtomicInteger
 
+import org.apache.hadoop.io.nativeio.NativeIO
 import org.apache.spark.sort.old.Sort
 import org.apache.spark.sort.{NodeLocalRDDPartition, NodeLocalRDD}
 import org.apache.spark.{TaskContext, Partition, SparkConf, SparkContext}
@@ -44,12 +45,31 @@ object SortDataGenerator {
         }
         val outputFile = s"$baseFolder/part$part.dat"
 
-        val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
+        val fileOutputStream = new FileOutputStream(outputFile)
+        val os = new BufferedOutputStream(fileOutputStream, 4 * 1024 * 1024)
         while (iter.hasNext) {
           val buf = iter.next()
           os.write(buf)
         }
         os.close()
+
+        NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
+          outputFile,
+          fileOutputStream.getFD,
+          0,
+          recordsPerPartition * 100,
+          NativeIO.POSIX.POSIX_FADV_DONTNEED)
+
+        {
+          val startTime = System.currentTimeMillis()
+          NativeIO.POSIX.syncFileRangeIfPossible(
+            fileOutputStream.getFD,
+            0,
+            recordsPerPartition * 100,
+            NativeIO.POSIX.SYNC_FILE_RANGE_WRITE)
+          val timeTaken = System.currentTimeMillis() - startTime
+          logInfo(s"fsync $outputFile took $timeTaken ms")
+        }
 
         Iterator((host, part, outputFile))
       }
