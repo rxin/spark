@@ -51,7 +51,6 @@ object SortDataGenerator {
           val buf = iter.next()
           os.write(buf)
         }
-        os.close()
 
         NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
           outputFile,
@@ -70,6 +69,8 @@ object SortDataGenerator {
           val timeTaken = System.currentTimeMillis() - startTime
           logInfo(s"fsync $outputFile took $timeTaken ms")
         }
+
+        os.close()
 
         Iterator((host, part, outputFile))
       }
