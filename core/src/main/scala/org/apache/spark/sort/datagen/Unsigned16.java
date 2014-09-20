@@ -22,11 +22,13 @@ package org.apache.spark.sort.datagen;
  * This file is copied and simplified from Hadoop package org.apache.hadoop.examples.terasort.
  */
 
+import java.io.Serializable;
+
 /**
  * An unsigned 16 byte integer class that supports addition, multiplication,
  * and left shifts.
  */
-class Unsigned16 {
+public class Unsigned16 implements Serializable {
   private long hi8;
   private long lo8;
 
