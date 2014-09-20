@@ -63,7 +63,7 @@ private[netty] class BlockServerHandler(dataProvider: BlockDataManager)
       )
     }
 
-    logTrace(s"Received request from $client to fetch block $blockId")
+    logInfo(s"Received request from $client to fetch block $blockId")
 
     // First make sure we can find the block. If not, send error back to the user.
     var buf: ManagedBuffer = null
