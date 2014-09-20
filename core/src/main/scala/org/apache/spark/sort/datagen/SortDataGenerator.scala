@@ -15,7 +15,7 @@ object SortDataGenerator {
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts")
+    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts").toSeq
 
     val sc = new SparkContext(
       new SparkConf().setAppName(s"DataGeneratorJava - $sizeInGB GB - $numParts parts - $dirs"))
@@ -63,7 +63,7 @@ object SortDataGenerator {
     println(s"checksum output: $checksumFile")
     val writer = new java.io.PrintWriter(new File(checksumFile))
     output.foreach {  case (host, part, outputFile) =>
-      writer.write(s"$part\t$host\t$outputFile")
+      writer.write(s"$part\t$host\t$outputFile\n")
     }
     writer.close()
   }  // end of genSort

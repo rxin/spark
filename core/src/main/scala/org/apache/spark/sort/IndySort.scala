@@ -28,7 +28,7 @@ object IndySort extends Logging {
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts")
+    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts").toSeq
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
