@@ -17,8 +17,8 @@ object SortDataGenerator {
     val numParts = args(1).toInt
     val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts").toSeq
 
-    val sc = new SparkContext(
-      new SparkConf().setAppName(s"DataGeneratorJava - $sizeInGB GB - $numParts parts - $dirs"))
+    val sc = new SparkContext(new SparkConf().setAppName(
+      s"DataGeneratorJava - $sizeInGB GB - $numParts parts - ${args(2)}"))
 
     genSort(sc, sizeInGB, numParts, dirs)
   }

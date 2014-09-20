@@ -3,6 +3,7 @@ package org.apache.spark.sort
 import java.io._
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
+import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.concurrent.future
@@ -21,21 +22,22 @@ import org.apache.spark.util.collection.{Sorter, SortDataFormat}
  */
 object IndySort extends Logging {
 
-  val NUM_EBS = 8
-
   private[this] val numTasksOnExecutor = new AtomicInteger
+
+  private[this] val semaphores = java.util.Collections.synchronizedMap(
+    new java.util.HashMap[String, Semaphore])
 
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts").toSeq
+    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts")
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val sc = new SparkContext(
-      new SparkConf().setAppName(s"IndySort - $sizeInGB GB - $numParts part - $dirs"))
+      new SparkConf().setAppName(s"IndySort - $sizeInGB GB - $numParts part - ${args(2)}"))
     val input = createInputRDDUnsafe(sc, sizeInGB, numParts, dirs)
 
     val partitioner = new UnsafePartitioner(numParts)
@@ -248,13 +250,16 @@ object IndySort extends Logging {
     scala.Console.flush()
   }
 
-  /** Find the input file in the dirs. */
-  def findInputFile(dirs: Seq[String], part: Int): String = {
+  /**
+   * Find the input file in the dirs. Return (base path, full path). The base path can be used
+   * for resource coordination.
+   */
+  def findInputFile(dirs: Seq[String], part: Int): (String, String) = {
     var i = 0
     while (i < dirs.size) {
       val path = dirs(i) + s"/part$part.dat"
       if (new File(path).exists()) {
-        return path
+        return (dirs(i), path)
       }
       i += 1
     }
@@ -273,7 +278,7 @@ object IndySort extends Logging {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
 
-        val inputFile = findInputFile(dirs, part)
+        val (basePath, inputFile) = findInputFile(dirs, part)
         val fileSize = new File(inputFile).length
         assert(fileSize % 100 == 0)
 
@@ -285,7 +290,25 @@ object IndySort extends Logging {
 
         val sortBuffer = sortBuffers.get()
 
+        // Coordinate so only one thread is reading from one path at a time.
+        // This can hopefully improve pipelining of tasks.
+        semaphores.synchronized {
+          if (semaphores.get(basePath) == null) {
+            semaphores.put(basePath, new Semaphore(1))
+          }
+        }
+        val sem = semaphores.get(basePath)
+
+        {
+          logInfo(s"trying to acquire semaphore for $basePath")
+          val startTime = System.currentTimeMillis
+          sem.acquire()
+          logInfo(s"acquired semaphore for $basePath took " + (System.currentTimeMillis - startTime) + " ms")
+        }
+
         readFileIntoBuffer(inputFile, sortBuffer)
+
+        sem.release()
 
         // delete input file in a separate thread
         future {
