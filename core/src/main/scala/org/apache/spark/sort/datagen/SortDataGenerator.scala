@@ -31,7 +31,7 @@ object SortDataGenerator {
 
     val hosts = Sort.readSlaves()
 
-    val output = new NodeLocalRDD[(String, Int, String)](sc, numParts, hosts) {
+    val output = new NodeLocalRDD[(String, Int, String, Unsigned16)](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
         val host = split.asInstanceOf[NodeLocalRDDPartition].node
@@ -47,8 +47,19 @@ object SortDataGenerator {
 
         val fileOutputStream = new FileOutputStream(outputFile)
         val os = new BufferedOutputStream(fileOutputStream, 4 * 1024 * 1024)
+
+        val sum = new Unsigned16
+        val checksum = new Unsigned16
+        val crc32 = new PureJavaCrc32()
+
         while (iter.hasNext) {
           val buf = iter.next()
+
+          crc32.reset()
+          crc32.update(buf, 0, buf.length)
+          checksum.set(crc32.getValue)
+          sum.add(checksum)
+
           os.write(buf)
         }
 
@@ -72,21 +83,26 @@ object SortDataGenerator {
 
         os.close()
 
-        Iterator((host, part, outputFile))
+        Iterator((host, part, outputFile, sum))
       }
     }.collect()
 
-    output.foreach { case (host, part, outputFile) =>
-      println(s"$part\t$host\t$outputFile")
+    val sum = new Unsigned16
+    output.foreach { case (host, part, outputFile, checksum) =>
+      println(s"$part\t$host\t$outputFile\t${checksum.toString}")
+      sum.add(checksum)
     }
 
     val checksumFile = s"/root/sort-${sizeInGB}g-$numParts.output"
     println(s"checksum output: $checksumFile")
     val writer = new java.io.PrintWriter(new File(checksumFile))
-    output.foreach {  case (host, part, outputFile) =>
-      writer.write(s"$part\t$host\t$outputFile\n")
+    output.foreach {  case (host, part, outputFile, checkSum) =>
+      writer.write(s"$part\t$host\t$outputFile\t${checkSum.toString}\n")
     }
+    writer.write("sum: " + sum)
     writer.close()
+
+    println("sum: " + sum)
   }  // end of genSort
 
   def generatePartition(part: Int, recordsPerPartition: Int): Iterator[Array[Byte]] = {
