@@ -438,6 +438,7 @@ def launch_cluster(conn, opts, cluster_name):
                (opts.slaves, opts.spot_price))
         zones = get_zones(conn, opts)
         num_zones = len(zones)
+        print "zones: %s" % (zones[0])
         i = 0
         my_req_ids = []
         for zone in zones:
@@ -446,7 +447,7 @@ def launch_cluster(conn, opts, cluster_name):
                 slave_reqs = conn.request_spot_instances(
                     price=opts.spot_price,
                     image_id=opts.ami,
-                    launch_group="launch-group-%s" % cluster_name,
+                    #launch_group="launch-group-%s" % cluster_name,
                     placement=zone,
                     count=num_slaves_this_zone,
                     key_name=opts.key_pair,
@@ -466,7 +467,7 @@ def launch_cluster(conn, opts, cluster_name):
                 slave_reqs = conn.request_spot_instances(
                     price=opts.spot_price,
                     image_id=opts.ami,
-                    launch_group="launch-group-%s" % cluster_name,
+                    #launch_group="launch-group-%s" % cluster_name,
                     count=num_slaves_this_zone,
                     key_name=opts.key_pair,
                     instance_type=opts.instance_type,
