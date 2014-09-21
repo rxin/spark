@@ -166,7 +166,7 @@ def parse_args():
     parser.add_option(
         "--subnet-id", type="string", default="", help="VPC subnet ID to launch this cluster in")
     parser.add_option(
-        "--vpc-id", type="string", default="", help="VPC ID to launch this cluster in")
+        "--vpc-id", type="string", default=None, help="VPC ID to launch this cluster in")
     parser.add_option(
         "--placement-group", type="string", default=None,
         help="placement-group to launch this cluster in")
