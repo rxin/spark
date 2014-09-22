@@ -3,15 +3,16 @@ package org.apache.spark.sort
 import java.io._
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
+import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicInteger
 
 import _root_.io.netty.buffer.ByteBuf
+import org.apache.hadoop.io.nativeio.NativeIO
 import org.apache.spark._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
 import org.apache.spark.sort.old.Sort
 import org.apache.spark.util.collection.{Sorter, SortDataFormat}
-
 
 /**
  * A version of the sort code that uses Unsafe to allocate off-heap blocks.
@@ -22,31 +23,34 @@ object UnsafeSort extends Logging {
 
   private[this] val numTasksOnExecutor = new AtomicInteger
 
+  private[this] val semaphores = java.util.Collections.synchronizedMap(
+    new java.util.HashMap[String, Semaphore])
+
+  private[this] val networkSemaphore = new Semaphore(8)
+
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
+    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts")
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val sc = new SparkContext(
-      new SparkConf().setAppName(s"UnsafeSort - $sizeInGB GB - $numParts partitions"))
-    val input = createInputRDDUnsafe(sc, sizeInGB, numParts)
+      new SparkConf().setAppName(s"IndySort - $sizeInGB GB - $numParts part - ${args(2)}"))
+    val input = createInputRDDUnsafe(sc, sizeInGB, numParts, dirs)
 
     val partitioner = new UnsafePartitioner(numParts)
     val shuffled = new ShuffledRDD(input, partitioner)
       .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
     val recordsAfterSort: Long = shuffled.mapPartitionsWithIndex { (part, iter) =>
-
-      // Pick the EBS volume to write to. Rotate through the EBS volumes to balance.
-      val volIndex = numTasksOnExecutor.getAndIncrement() % NUM_EBS
-      val baseFolder = s"/vol$volIndex/sort-${sizeInGB}g-$numParts-out"
+      val baseFolder = dirs(numTasksOnExecutor.getAndIncrement() % dirs.size) + "-out"
       val outputFile = s"$baseFolder/part$part.dat"
 
       val startTime = System.currentTimeMillis()
-      val sortBuffer = UnsafeSort.sortBuffers.get()
+      val sortBuffer = sortBuffers.get()
       assert(sortBuffer != null)
       var offset = 0L
       var numShuffleBlocks = 0
@@ -63,7 +67,7 @@ object UnsafeSort extends Logging {
             assert(bytebuf.hasMemoryAddress)
 
             val start = bytebuf.memoryAddress + bytebuf.readerIndex
-            UnsafeSort.UNSAFE.copyMemory(start, sortBuffer.address + offset, len)
+            UNSAFE.copyMemory(start, sortBuffer.address + offset, len)
             offset += len
             bytebuf.release()
 
@@ -95,15 +99,15 @@ object UnsafeSort extends Logging {
       val numRecords = (offset / 100).toInt
 
       // Sort!!!
-      {
-        val startTime = System.currentTimeMillis
-        //val sorter = new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, numRecords, ord)
-        sortWithKeys(sortBuffer, 0, numRecords)
-        val timeTaken = System.currentTimeMillis - startTime
-        logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
-        println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
-        scala.Console.flush()
-      }
+    {
+      val startTime = System.currentTimeMillis
+      //val sorter = new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, numRecords, ord)
+      sortWithKeys(sortBuffer, 0, numRecords)
+      val timeTaken = System.currentTimeMillis - startTime
+      logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
+      println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
+      scala.Console.flush()
+    }
 
       val count: Long = {
         val startTime = System.currentTimeMillis
@@ -215,6 +219,15 @@ object UnsafeSort extends Logging {
         sortBuffer.ioBuf.clear()
         read += read0
       }
+
+      // Drop from buffer cache
+      NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
+        inputFile,
+        is.getFD,
+        0,
+        fileSize,
+        NativeIO.POSIX.POSIX_FADV_DONTNEED)
+
     } finally {
       if (channel != null) {
         channel.close()
@@ -247,20 +260,24 @@ object UnsafeSort extends Logging {
     scala.Console.flush()
   }
 
-  /** Find the input file in the 8 ebs volumes and return it. */
-  def findInputFile(sizeInGB: Int, numParts: Int, part: Int): String = {
+  /**
+   * Find the input file in the dirs. Return (base path, full path). The base path can be used
+   * for resource coordination.
+   */
+  def findInputFile(dirs: Seq[String], part: Int): (String, String) = {
     var i = 0
-    while (i < NUM_EBS) {
-      if (new File(s"/vol$i/sort-${sizeInGB}g-$numParts/part$part.dat").exists()) {
-        return s"/vol$i/sort-${sizeInGB}g-$numParts/part$part.dat"
+    while (i < dirs.size) {
+      val path = dirs(i) + s"/part$part.dat"
+      if (new File(path).exists()) {
+        return (dirs(i), path)
       }
       i += 1
     }
-    throw new FileNotFoundException(s"/vol*/sort-${sizeInGB}g-$numParts/part$part.dat")
+    throw new FileNotFoundException(s"/part$part.dat")
   }
 
-  def createInputRDDUnsafe(sc: SparkContext, sizeInGB: Int, numParts: Int)
-    : RDD[(Long, Array[Long])] = {
+  def createInputRDDUnsafe(sc: SparkContext, sizeInGB: Int, numParts: Int, dirs: Seq[String])
+  : RDD[(Long, Array[Long])] = {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val totalRecords = sizeInBytes / 100
@@ -271,7 +288,7 @@ object UnsafeSort extends Logging {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
 
-        val inputFile = findInputFile(sizeInGB, numParts, part)
+        val (basePath, inputFile) = findInputFile(dirs, part)
         val fileSize = new File(inputFile).length
         assert(fileSize % 100 == 0)
 
@@ -283,7 +300,24 @@ object UnsafeSort extends Logging {
 
         val sortBuffer = sortBuffers.get()
 
+        // Coordinate so only one thread is reading from one path at a time.
+        // This can hopefully improve pipelining of tasks.
+        semaphores.synchronized {
+          if (semaphores.get(basePath) == null) {
+            semaphores.put(basePath, new Semaphore(1))
+          }
+        }
+        val sem = semaphores.get(basePath)
+
+        {
+          logInfo(s"trying to acquire semaphore for $basePath")
+          val startTime = System.currentTimeMillis
+          sem.acquire()
+          logInfo(s"acquired semaphore for $basePath took " + (System.currentTimeMillis - startTime) + " ms")
+        }
+
         readFileIntoBuffer(inputFile, sortBuffer)
+        sem.release()
         buildLongPointers(sortBuffer, fileSize)
 
         // Sort!!!
