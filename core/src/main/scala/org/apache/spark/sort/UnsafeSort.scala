@@ -26,20 +26,19 @@ object UnsafeSort extends Logging {
   private[this] val semaphores = java.util.Collections.synchronizedMap(
     new java.util.HashMap[String, Semaphore])
 
-  private[this] val networkSemaphore = new Semaphore(8)
-
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
     val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts")
+    val replica = if (args.length > 3) args(3).toInt else 1
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
-    val sc = new SparkContext(
-      new SparkConf().setAppName(s"IndySort - $sizeInGB GB - $numParts part - ${args(2)}"))
-    val input = createInputRDDUnsafe(sc, sizeInGB, numParts, dirs)
+    val sc = new SparkContext(new SparkConf().setAppName(
+        s"IndySort - $sizeInGB GB - $numParts parts $replica replica - ${args(2)}"))
+    val input = createInputRDDUnsafe(sc, sizeInGB, numParts, dirs, replica)
 
     val partitioner = new UnsafePartitioner(numParts)
     val shuffled = new ShuffledRDD(input, partitioner)
@@ -276,15 +275,22 @@ object UnsafeSort extends Logging {
     throw new FileNotFoundException(s"/part$part.dat")
   }
 
-  def createInputRDDUnsafe(sc: SparkContext, sizeInGB: Int, numParts: Int, dirs: Seq[String])
-  : RDD[(Long, Array[Long])] = {
+  def createInputRDDUnsafe(
+      sc: SparkContext, sizeInGB: Int, numParts: Int, dirs: Seq[String], replica: Int)
+    : RDD[(Long, Array[Long])] = {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val totalRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
 
     val hosts = Sort.readSlaves()
-    new NodeLocalRDD[(Long, Array[Long])](sc, numParts, hosts) {
+    val replicatedHosts = Array.tabulate[Seq[String]](hosts.length) { i =>
+      Seq.tabulate[String](replica) { replicaIndex =>
+        hosts((i + replicaIndex) % hosts.length)
+      }
+    }
+
+    new NodeLocalReplicaRDD[(Long, Array[Long])](sc, numParts, replicatedHosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
 

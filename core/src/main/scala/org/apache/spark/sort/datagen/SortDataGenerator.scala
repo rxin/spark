@@ -17,23 +17,32 @@ object SortDataGenerator {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
     val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts").toSeq
+    val replica = if (args.length > 3) args(3).toInt else 1
 
     val sc = new SparkContext(new SparkConf().setAppName(
-      s"DataGeneratorJava - $sizeInGB GB - $numParts parts - ${args(2)}"))
+      s"DataGeneratorJava - $sizeInGB GB - $numParts parts $replica replica - ${args(2)}"))
 
-    genSort(sc, sizeInGB, numParts, dirs)
+    genSort(sc, sizeInGB, numParts, dirs, replica)
   }
 
-  def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, dirs: Seq[String]): Unit = {
+  def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, dirs: Seq[String], replica: Int) {
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val hosts = Sort.readSlaves()
+    val numTasks = numParts * replica
 
-    val output = new NodeLocalRDD[(String, Int, String, Unsigned16)](sc, numParts, hosts) {
+    val replicatedHosts = new Array[String](numTasks)
+    for (replicaIndex <- 0 until replica) {
+      for (i <- 0 until numParts) {
+        replicatedHosts(replicaIndex * numParts + i) = hosts((i + replicaIndex) % hosts.length)
+      }
+    }
+
+    val output = new NodeLocalRDD[(String, Int, String, Unsigned16)](sc, numTasks, replicatedHosts) {
       override def compute(split: Partition, context: TaskContext) = {
-        val part = split.index
+        val part = split.index % numParts
         val host = split.asInstanceOf[NodeLocalRDDPartition].node
         val baseFolder = dirs(numTasksOnExecutor.getAndIncrement() % dirs.size)
 

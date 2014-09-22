@@ -21,3 +21,20 @@ abstract class NodeLocalRDD[T: ClassTag](
     new NodeLocalRDDPartition(i, hosts(i % hosts.length))
   }
 }
+
+
+class NodeLocalReplicaRDDPartition(val index: Int, val node: Seq[String]) extends Partition
+
+
+abstract class NodeLocalReplicaRDD[T: ClassTag](
+    sc: SparkContext, numParts: Int, @transient hosts: Array[Seq[String]])
+  extends RDD[T](sc, Nil) with Logging {
+
+  override def getPreferredLocations(split: Partition): Seq[String] = {
+    split.asInstanceOf[NodeLocalReplicaRDDPartition].node
+  }
+
+  override protected def getPartitions: Array[Partition] = Array.tabulate(numParts) { i =>
+    new NodeLocalReplicaRDDPartition(i, hosts(i % hosts.length))
+  }
+}
