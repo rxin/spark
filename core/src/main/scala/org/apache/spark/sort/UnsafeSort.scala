@@ -37,7 +37,7 @@ object UnsafeSort extends Logging {
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val sc = new SparkContext(new SparkConf().setAppName(
-        s"IndySort - $sizeInGB GB - $numParts parts $replica replica - ${args(2)}"))
+        s"UnsafeSort - $sizeInGB GB - $numParts parts $replica replica - ${args(2)}"))
     val input = createInputRDDUnsafe(sc, sizeInGB, numParts, dirs, replica)
 
     val partitioner = new UnsafePartitioner(numParts)
