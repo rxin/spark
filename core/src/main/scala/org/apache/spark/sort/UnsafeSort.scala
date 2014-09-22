@@ -74,7 +74,7 @@ object UnsafeSort extends Logging {
             val fs = new FileInputStream(buf.file)
             val channel = fs.getChannel
             channel.position(buf.offset)
-            assert(buf.length < 4 * 1024 * 1024)
+            assert(buf.length < 200 * 1024 * 1024)
             sortBuffer.ioBuf.clear()
             sortBuffer.ioBuf.limit(buf.length.toInt)
             sortBuffer.setIoBufAddress(sortBuffer.address + offset)
@@ -172,7 +172,7 @@ object UnsafeSort extends Logging {
      *
      * i.e. the 4MB allocated here is not used at all. We are only the 4MB for tracking.
      */
-    val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(4 * 1024 * 1024)
+    val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(200 * 1024 * 1024)
 
     /** list of pointers to each block, used for sorting. */
     val pointers: Array[Long] = new Array[Long](capacity.toInt)
