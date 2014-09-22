@@ -11,23 +11,21 @@ import scala.sys.process._
 object SortDataValidator {
 
   def main(args: Array[String]): Unit = {
-    val sizeInGB = args(0).toInt
-    val numParts = args(1).toInt
-    val sc = new SparkContext(new SparkConf())
-    validate(sc, sizeInGB, numParts)
+    val folderName = args(0)  // sort-10g-100 or sort-10g-100-out
+    val dirs = args(1).split(",").map(_ + "/" + folderName).toSeq
+    val sc = new SparkContext(new SparkConf().setAppName(s"valgen - " + dirs.mkString(",")))
+    validate(sc, dirs, folderName)
   }
 
-  def validate(sc: SparkContext, sizeInGB: Int, numParts: Int): Unit = {
-
+  def validate(sc: SparkContext, dirs: Seq[String], folderName: String): Unit = {
     val hosts = Sort.readSlaves()
-    val numEBS = UnsafeSort.NUM_EBS
-
+    // First find all the files
     val output: Array[(Int, String, String)] = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
-        val host = "hostname".!!.trim
+        dirs.iterator.flatMap { dir =>
+          val host = "hostname".!!.trim
 
-        (0 until numEBS).iterator.flatMap { ebs =>
-          val baseFolder = new File(s"/vol$ebs/sort-${sizeInGB}g-$numParts-out")
+          val baseFolder = new File(dir)
           val files: Array[File] = baseFolder.listFiles(new FilenameFilter {
             override def accept(dir: File, filename: String): Boolean = {
               filename.endsWith(".dat")
@@ -80,11 +78,20 @@ object SortDataValidator {
       println(s"$part\t$outputFile\t$stdout\t$stderr")
     }
 
-    val checksumFile = s"/root/sort-${sizeInGB}g-$numParts-out.sum"
+    val checksumFile = s"/root/$folderName.sum"
     println(s"checksum output: $checksumFile")
+    if (!new File(s"/root/$folderName-checksums/").exists()) {
+      new File(s"/root/$folderName-checksums/").mkdir()
+    }
+
     val writer = new FileOutputStream(new File(checksumFile))
-    checksumOut.foreach {  case (_, _, _, _, checksumData: Array[Byte]) =>
+    checksumOut.foreach {  case (part, _, _, _, checksumData: Array[Byte]) =>
       writer.write(checksumData)
+
+      val partFile = s"/root/$folderName-checksums/part$part.sum"
+      val fp = new RandomAccessFile(partFile, "w")
+      fp.write(checksumData)
+      fp.close()
     }
     writer.close()
   }  // end of genSort

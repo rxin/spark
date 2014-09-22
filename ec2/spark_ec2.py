@@ -447,7 +447,7 @@ def launch_cluster(conn, opts, cluster_name):
                 slave_reqs = conn.request_spot_instances(
                     price=opts.spot_price,
                     image_id=opts.ami,
-                    #launch_group="launch-group-%s" % cluster_name,
+                    launch_group="launch-group-%s" % cluster_name,
                     placement=zone,
                     count=num_slaves_this_zone,
                     key_name=opts.key_pair,
