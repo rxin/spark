@@ -15,23 +15,21 @@ object Validate {
 
   def main(args: Array[String]): Unit = {
     val folderName = args(0)  // sort-10g-100 or sort-10g-100-out
+    val dirs = args(1).split(",").map(_ + "/" + folderName).toSeq
     val sc = new SparkContext(
         new SparkConf().setAppName(s"XOR - $folderName"))
-    validate(sc, folderName)
+    validate(sc, folderName, dirs)
   }
 
-  def validate(sc: SparkContext, folderName: String): Unit = {
-
+  def validate(sc: SparkContext, folderName: String, dirs: Seq[String]): Unit = {
     val hosts = Sort.readSlaves()
-    val numEBS = UnsafeSort.NUM_EBS
-
     // First find all the files
     val output: Array[(Int, String, String)] = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
-        (0 until numEBS).iterator.flatMap { ebs =>
+        dirs.iterator.flatMap { dir =>
           val host = "hostname".!!.trim
 
-          val baseFolder = new File(s"/vol$ebs/$folderName")
+          val baseFolder = new File(dir + "/" + folderName)
           val files: Array[File] = baseFolder.listFiles(new FilenameFilter {
             override def accept(dir: File, filename: String): Boolean = {
               filename.endsWith(".dat")
