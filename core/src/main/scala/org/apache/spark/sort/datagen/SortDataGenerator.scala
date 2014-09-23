@@ -3,6 +3,7 @@ package org.apache.spark.sort.datagen
 import java.io.{FileOutputStream, BufferedOutputStream, File}
 import java.util.concurrent.atomic.AtomicInteger
 
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.nativeio.NativeIO
 import org.apache.spark.sort.old.Sort
 import org.apache.spark.sort.{NodeLocalRDDPartition, NodeLocalRDD}
@@ -17,12 +18,72 @@ object SortDataGenerator {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
     val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts").toSeq
-    val replica = if (args.length > 3) args(3).toInt else 1
+    val replica = args(3).toInt
 
     val sc = new SparkContext(new SparkConf().setAppName(
       s"DataGeneratorJava - $sizeInGB GB - $numParts parts $replica replica - ${args(2)}"))
 
-    genSort(sc, sizeInGB, numParts, dirs, replica)
+    val hdfs = dirs.head.startsWith("hdfs")
+    if (hdfs) {
+      assert(dirs.size == 1)
+      genSortHdfs(sc, sizeInGB, numParts, dirs.head, replica)
+    } else {
+      genSort(sc, sizeInGB, numParts, dirs, replica)
+    }
+
+  }
+
+  def genSortHdfs(sc: SparkContext, sizeInGB: Int, numParts: Int, dir: String, replica: Int) {
+    val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
+    val numRecords = sizeInBytes / 100
+    val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
+
+    val conf = new org.apache.hadoop.conf.Configuration
+    val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+    val root = new Path(dir)
+    if (fs.exists(root)) {
+      fs.mkdirs(root)
+    }
+
+    val hosts = Sort.readSlaves()
+    val output = new NodeLocalRDD[(String, Int, String, Unsigned16)](sc, numParts, hosts) {
+      override def compute(split: Partition, context: TaskContext) = {
+        val part = split.index % numParts
+        val host = split.asInstanceOf[NodeLocalRDDPartition].node
+
+        val iter = generatePartition(part, recordsPerPartition.toInt)
+        val outputFile = s"$dir/part$part.dat"
+
+        val conf = new org.apache.hadoop.conf.Configuration
+        val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+
+        val out = fs.create(
+          new Path(outputFile),
+          false,  // overwrite
+          4 * 1024 * 1024,  // buffer size
+          replica.toShort,  // replication
+          recordsPerPartition * 100  // block size
+        )
+
+        val sum = new Unsigned16
+        val checksum = new Unsigned16
+        val crc32 = new PureJavaCrc32()
+
+        while (iter.hasNext) {
+          val buf = iter.next()
+
+          crc32.reset()
+          crc32.update(buf, 0, buf.length)
+          checksum.set(crc32.getValue)
+          sum.add(checksum)
+
+          out.write(buf)
+        }
+        out.close()
+
+        Iterator((host, part, outputFile, sum))
+      }
+    }
   }
 
   def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, dirs: Seq[String], replica: Int) {
