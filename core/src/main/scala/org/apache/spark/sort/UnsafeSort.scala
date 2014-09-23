@@ -364,7 +364,7 @@ object UnsafeSort extends Logging {
     var startTime = System.currentTimeMillis()
     val fileSize = new File(inputFile).length
     assert(fileSize % 100 == 0)
-    assert(sortBuffer.ioBuf.limit % 100 == 0)
+    assert(sortBuffer.ioBuf.limit % 100 == 0, "buffer limit is " + sortBuffer.ioBuf.limit)
 
     // Size of chunks we'll sort in the background thread; this is set to get 100 chunks
     val chunkSize = 100 * sortBuffer.ioBuf.limit
