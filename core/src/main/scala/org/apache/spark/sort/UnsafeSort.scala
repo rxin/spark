@@ -175,7 +175,8 @@ object UnsafeSort extends Logging {
      *
      * i.e. the 4MB allocated here is not used at all. We are only the 4MB for tracking.
      */
-    val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(4 * 1024 * 1024)
+    //val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(4 * 1024 * 1024)
+    val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(5 * 1000 * 1000)
 
     /** list of pointers to each block, used for sorting. */
     var pointers: Array[Long] = new Array[Long](capacity.toInt)
