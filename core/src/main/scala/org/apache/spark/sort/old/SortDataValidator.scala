@@ -89,7 +89,7 @@ object SortDataValidator {
       writer.write(checksumData)
 
       val partFile = s"/root/$folderName-checksums/part$part.sum"
-      val fp = new RandomAccessFile(partFile, "w")
+      val fp = new RandomAccessFile(partFile, "rw")
       fp.write(checksumData)
       fp.close()
     }
