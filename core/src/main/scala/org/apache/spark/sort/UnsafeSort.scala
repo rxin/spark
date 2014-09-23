@@ -315,21 +315,20 @@ object UnsafeSort extends Logging {
           val capacity = recordsPerPartition + recordsPerPartition / 10
           sortBuffers.set(new SortBuffer(capacity))
         }
+        // Coordinate so only one thread is reading from one path at a time.
+        // This can hopefully improve pipelining of tasks.
+        semaphores.synchronized {
+          if (semaphores.get(basePath) == null) {
+            semaphores.put(basePath, new Semaphore(1))
+          }
+        }
+        val sem = semaphores.get(basePath)
 
         val sortBuffer = sortBuffers.get()
 
         if (pipeline) {
-          readFileAndSort(inputFile, sortBuffer)
+          readFileAndSort(inputFile, sortBuffer, sem)
         } else {
-          // Coordinate so only one thread is reading from one path at a time.
-          // This can hopefully improve pipelining of tasks.
-          semaphores.synchronized {
-            if (semaphores.get(basePath) == null) {
-              semaphores.put(basePath, new Semaphore(1))
-            }
-          }
-          val sem = semaphores.get(basePath)
-
           {
             logInfo(s"trying to acquire semaphore for $basePath")
             val startTime = System.currentTimeMillis
@@ -360,7 +359,7 @@ object UnsafeSort extends Logging {
 
 
   /** Read chunks from a file and sort them in a background thread, producing a sorted buffer at the end */
-  def readFileAndSort(inputFile: String, sortBuffer: SortBuffer) {
+  def readFileAndSort(inputFile: String, sortBuffer: SortBuffer, sem: Semaphore) {
     logInfo(s"reading and sorting file $inputFile")
     var startTime = System.currentTimeMillis()
     val fileSize = new File(inputFile).length
@@ -404,7 +403,12 @@ object UnsafeSort extends Logging {
       pos += 100
       i += 1
     }
-
+    {
+      logInfo(s"trying to acquire semaphore for $inputFile")
+      val startTime = System.currentTimeMillis
+      sem.acquire()
+      logInfo(s"acquired semaphore for $inputFile took " + (System.currentTimeMillis - startTime) + " ms")
+    }
     var is: FileInputStream = null
     var channel: FileChannel = null
     var read = 0L
@@ -437,7 +441,7 @@ object UnsafeSort extends Logging {
         is.close()
       }
     }
-
+    sem.release()
     sortRequests.put((-1, -1))
     backgroundThread.join()
 
