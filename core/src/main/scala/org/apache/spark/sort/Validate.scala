@@ -69,7 +69,7 @@ object Validate {
 
         val fileSize = new File(file).length
         assert(fileSize % 100 == 0)
-        var pos = 0
+        var pos = 0L
         val min = new Array[Byte](10)
         val max = new Array[Byte](10)
         val is = new BufferedInputStream(new FileInputStream(file), 4 * 1024 * 1024)
