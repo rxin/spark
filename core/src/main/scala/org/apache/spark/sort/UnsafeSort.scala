@@ -319,7 +319,7 @@ object UnsafeSort extends Logging {
         // This can hopefully improve pipelining of tasks.
         semaphores.synchronized {
           if (semaphores.get(basePath) == null) {
-            semaphores.put(basePath, new Semaphore(8))
+            semaphores.put(basePath, new Semaphore(1))
           }
         }
         val sem = semaphores.get(basePath)
