@@ -83,7 +83,14 @@ object SortDataGenerator {
 
         Iterator((host, part, outputFile, sum))
       }
+    }.collect()
+
+    val sum = new Unsigned16
+    output.foreach { case (host, part, outputFile, checksum) =>
+      println(s"$part\t$host\t$outputFile\t${checksum.toString}")
+      sum.add(checksum)
     }
+    println("sum: " + sum)
   }
 
   def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, dirs: Seq[String], replica: Int) {
