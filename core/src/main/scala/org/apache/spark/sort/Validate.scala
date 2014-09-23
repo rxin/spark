@@ -81,7 +81,7 @@ object Validate {
         val crc32 = new PureJavaCrc32()
         while (pos < fileSize) {
           val read0 = is.read(buf)
-          assert(read0 == 100, s"read0 is $read0")
+          assert(read0 == 100, s"read0 is $read0, pos is $pos, filelen is $fileSize")
           pos += 100
 
           // Make sure current record >= previous record
