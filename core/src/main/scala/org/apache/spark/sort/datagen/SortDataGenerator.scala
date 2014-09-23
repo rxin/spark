@@ -53,12 +53,13 @@ object SortDataGenerator {
 
         val iter = generatePartition(part, recordsPerPartition.toInt)
         val outputFile = s"$dir/part$part.dat"
+        val tempFile = outputFile + s".${context.partitionId}.${context.attemptId}.tmp"
 
         val conf = new org.apache.hadoop.conf.Configuration
         val fs = org.apache.hadoop.fs.FileSystem.get(conf)
 
         val out = fs.create(
-          new Path(outputFile),
+          new Path(tempFile),
           false,  // overwrite
           4 * 1024 * 1024,  // buffer size
           replica.toShort,  // replication
@@ -80,6 +81,8 @@ object SortDataGenerator {
           out.write(buf)
         }
         out.close()
+
+        fs.rename(new Path(tempFile), new Path(outputFile))
 
         Iterator((host, part, outputFile, sum))
       }
