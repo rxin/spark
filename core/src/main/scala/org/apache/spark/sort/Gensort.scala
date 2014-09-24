@@ -13,13 +13,14 @@ object Gensort {
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts").toSeq
+    val skew = args(2).toBoolean
+    val dir = args(2) + s"/sort-${sizeInGB}g-$numParts"
     val sc = new SparkContext(
-      new SparkConf().setAppName(s"Gensort - $sizeInGB GB - $numParts partitions"))
-    genSort(sc, sizeInGB, numParts, dirs)
+      new SparkConf().setAppName(s"Gensort - $dir - " + (if (skew) "skewed" else "non-skewed")))
+    genSort(sc, sizeInGB, numParts, dir, skew)
   }
 
-  def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, dirs: Seq[String]): Unit = {
+  def genSort(sc: SparkContext, sizeInGB: Int, numParts: Int, dir: String, skew: Boolean): Unit = {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
@@ -33,13 +34,13 @@ object Gensort {
         val host = split.asInstanceOf[NodeLocalRDDPartition].node
 
         val start = recordsPerPartition * part
-        val baseFolder = dirs(numTasksOnExecutor.getAndIncrement() % dirs.length)
-        if (!new File(baseFolder).exists()) {
-          new File(baseFolder).mkdirs()
+        if (!new File(dir).exists()) {
+          new File(dir).mkdirs()
         }
 
-        val outputFile = s"$baseFolder/part$part.dat"
-        val cmd = s"/root/gensort/64/gensort -c -b$start -t1 $recordsPerPartition $outputFile"
+        val outputFile = s"$dir/part$part.dat"
+        val skewFlag = if (skew) "-s" else ""
+        val cmd = s"/root/gensort/64/gensort -c $skewFlag -b$start -t1 $recordsPerPartition $outputFile"
         val (exitCode, stdout, stderr) = Utils.runCommand(cmd)
         Iterator((host, part, outputFile, stdout, stderr))
       }
