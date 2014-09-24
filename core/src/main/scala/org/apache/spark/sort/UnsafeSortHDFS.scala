@@ -27,7 +27,7 @@ object UnsafeSortHDFS extends Logging {
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    val dir = args(2) + s"/sort-${sizeInGB}g-$numParts"
+    val dir = args(2)
     val replica = args(3).toInt
     val outputDir = dir + "-out"
 
@@ -36,7 +36,7 @@ object UnsafeSortHDFS extends Logging {
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val sc = new SparkContext(new SparkConf().setAppName(
-      s"UnsafeSortHDFS - $sizeInGB GB - $numParts parts $replica replica - ${args(2)}"))
+      s"UnsafeSortHDFS - $sizeInGB GB - $numParts parts $replica replica - $dir"))
 
     val conf = new org.apache.hadoop.conf.Configuration
     val fs = org.apache.hadoop.fs.FileSystem.get(conf)
