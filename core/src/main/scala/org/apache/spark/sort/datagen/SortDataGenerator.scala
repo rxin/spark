@@ -5,8 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.nativeio.NativeIO
-import org.apache.spark.sort.old.Sort
-import org.apache.spark.sort.{NodeLocalRDDPartition, NodeLocalRDD}
+import org.apache.spark.sort.{Utils, NodeLocalRDDPartition, NodeLocalRDD}
 import org.apache.spark.{TaskContext, Partition, SparkConf, SparkContext}
 
 
@@ -45,7 +44,7 @@ object SortDataGenerator {
       fs.mkdirs(root)
     }
 
-    val hosts = Sort.readSlaves()
+    val hosts = Utils.readSlaves()
     val output = new NodeLocalRDD[(String, Int, String, Unsigned16)](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index % numParts
@@ -102,7 +101,7 @@ object SortDataGenerator {
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
-    val hosts = Sort.readSlaves()
+    val hosts = Utils.readSlaves()
     val numTasks = numParts * replica
 
     val replicatedHosts = new Array[String](numTasks)

@@ -2,7 +2,7 @@ package org.apache.spark.sort.old
 
 import java.io.{File, FileOutputStream, FilenameFilter, RandomAccessFile}
 
-import org.apache.spark.sort.{NodeLocalRDD, UnsafeSort}
+import org.apache.spark.sort.{NodeLocalRDD, Utils}
 import org.apache.spark.{Partition, SparkConf, SparkContext, TaskContext}
 
 import scala.sys.process._
@@ -18,7 +18,7 @@ object SortDataValidator {
   }
 
   def validate(sc: SparkContext, dirs: Seq[String], folderName: String): Unit = {
-    val hosts = Sort.readSlaves()
+    val hosts = Utils.readSlaves()
     // First find all the files
     val output: Array[(Int, String, String)] = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
@@ -61,7 +61,7 @@ object SortDataValidator {
         val outputFile = outputMap(split.index)
         val checksumOutput = outputFile.replace(".dat", ".sum")
         val cmd = s"/root/gensort/64/valsort -o $checksumOutput $outputFile"
-        val (exitCode, stdout, stderr) = Sort.runCommand(cmd)
+        val (exitCode, stdout, stderr) = Utils.runCommand(cmd)
 
         val checksumData: Array[Byte] = {
           val len = new File(checksumOutput).length()

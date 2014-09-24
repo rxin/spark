@@ -11,7 +11,6 @@ import org.apache.hadoop.io.nativeio.NativeIO
 import org.apache.spark._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
-import org.apache.spark.sort.old.Sort
 import org.apache.spark.util.collection.{Sorter, SortDataFormat}
 
 /**
@@ -295,7 +294,7 @@ object UnsafeSort extends Logging {
     val totalRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
 
-    val hosts = Sort.readSlaves()
+    val hosts = Utils.readSlaves()
     val replicatedHosts = Array.tabulate[Seq[String]](hosts.length) { i =>
       Seq.tabulate[String](replica) { replicaIndex =>
         hosts((i + replicaIndex) % hosts.length)

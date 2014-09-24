@@ -3,7 +3,6 @@ package org.apache.spark.sort
 import java.io._
 
 import com.google.common.primitives.UnsignedBytes
-import org.apache.spark.sort.old.Sort
 
 import scala.sys.process._
 
@@ -22,7 +21,7 @@ object Validate {
   }
 
   def validate(sc: SparkContext, dirs: Seq[String]): Unit = {
-    val hosts = Sort.readSlaves()
+    val hosts = Utils.readSlaves()
     // First find all the files
     val output: Array[(Int, String, String)] = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
       override def compute(split: Partition, context: TaskContext) = {

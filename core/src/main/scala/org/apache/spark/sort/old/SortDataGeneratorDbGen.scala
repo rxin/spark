@@ -3,7 +3,7 @@ package org.apache.spark.sort.old
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
-import org.apache.spark.sort.{NodeLocalRDD, NodeLocalRDDPartition}
+import org.apache.spark.sort.{NodeLocalRDD, NodeLocalRDDPartition, Utils}
 import org.apache.spark.{Partition, SparkConf, SparkContext, TaskContext}
 
 
@@ -26,7 +26,7 @@ object SortDataGeneratorDbGen {
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
-    val hosts = Sort.readSlaves()
+    val hosts = Utils.readSlaves()
 
     val output = new NodeLocalRDD[(String, Int, String, String, String)](sc, numParts, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
@@ -41,7 +41,7 @@ object SortDataGeneratorDbGen {
 
         val outputFile = s"$baseFolder/part$part.dat"
         val cmd = s"/root/gensort/64/gensort -c -b$start -t1 $recordsPerPartition $outputFile"
-        val (exitCode, stdout, stderr) = Sort.runCommand(cmd)
+        val (exitCode, stdout, stderr) = Utils.runCommand(cmd)
         Iterator((host, part, outputFile, stdout, stderr))
       }
     }.collect()
