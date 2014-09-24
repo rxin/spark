@@ -283,7 +283,7 @@ object UnsafeSortHDFS extends Logging {
     while (statuses.hasNext) {
       val status = statuses.next()
       val blocks = status.getBlockLocations
-      assert(blocks.size == 1)
+      assert(blocks.size == 1, "found blocks: " + blocks.toSeq)
 
       val partName = "part(\\d+).dat".r.findFirstIn(status.getPath.getName).get
       val part = partName.replace("part", "").replace(".dat", "").toInt
