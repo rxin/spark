@@ -5,8 +5,10 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.util.concurrent.Semaphore
 
-import _root_.io.netty.buffer.ByteBuf
+import io.netty.buffer.ByteBuf
+
 import org.apache.hadoop.io.nativeio.NativeIO
+
 import org.apache.spark._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
@@ -24,6 +26,7 @@ object IndySort extends Logging {
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
       println("IndySort [sizeInGB] [numParts] [replica] [input-dir]")
+      System.exit(0)
     }
 
     val sizeInGB = args(0).toInt

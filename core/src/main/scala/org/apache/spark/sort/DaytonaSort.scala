@@ -3,10 +3,13 @@ package org.apache.spark.sort
 import java.io._
 import java.nio.ByteBuffer
 
-import _root_.io.netty.buffer.ByteBuf
+import io.netty.buffer.ByteBuf
+
 import com.google.common.primitives.UnsignedBytes
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{LocatedFileStatus, RemoteIterator, Path}
+
 import org.apache.spark._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
@@ -20,6 +23,7 @@ object DaytonaSort extends Logging {
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
       println("DaytonaSort [sizeInGB] [numParts] [replica] [input-dir]")
+      System.exit(0)
     }
 
     val sizeInGB = args(0).toInt

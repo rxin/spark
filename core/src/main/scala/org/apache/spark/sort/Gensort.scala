@@ -6,11 +6,17 @@ import java.util.concurrent.atomic.AtomicInteger
 import org.apache.spark.{Partition, SparkConf, SparkContext, TaskContext}
 
 
+/**
+ * Data generator using gensort provided by the sort benchmark. This writes generated data to
+ * local disks on worker nodes.
+ */
 object Gensort {
 
-  private[this] val numTasksOnExecutor = new AtomicInteger
-
   def main(args: Array[String]): Unit = {
+    if (args.length < 4) {
+      println("Gensort [sizeInGB] [numParts] [skew-boolean] [output-dir]")
+      System.exit(0)
+    }
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
     val skew = args(2).toBoolean
