@@ -155,9 +155,12 @@ object IndySort extends Logging {
       channel = is.getChannel()
       while (read < fileSize) {
         // This should read read0 bytes directly into our buffer
-        sortBuffer.setIoBufAddress(baseAddress + read)
-        val read0 = channel.read(sortBuffer.ioBuf)
         sortBuffer.ioBuf.clear()
+        sortBuffer.setIoBufAddress(baseAddress + read)
+        assert(
+          sortBuffer.ioBufAddress >= baseAddress && sortBuffer.ioBufAddress <= baseAddress + fileSize,
+          s"failed assertion $baseAddress <= ${sortBuffer.ioBufAddress} <= ${baseAddress + fileSize}")
+        val read0 = channel.read(sortBuffer.ioBuf)
         read += read0
       }
 
