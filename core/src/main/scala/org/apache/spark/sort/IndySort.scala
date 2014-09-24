@@ -9,9 +9,9 @@ import io.netty.buffer.ByteBuf
 import org.apache.hadoop.io.nativeio.NativeIO
 
 import org.apache.spark._
+import org.apache.spark.sort.SortUtils._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
-import org.apache.spark.util.collection.{Sorter, SortDataFormat}
 
 /**
  * A version of the sort code that uses Unsafe to allocate off-heap blocks.
@@ -41,7 +41,7 @@ object IndySort extends Logging {
 
     val sc = new SparkContext(new SparkConf().setAppName(
       s"IndySort - $sizeInGB GB - $numParts parts $replica replica - $dir"))
-    val input = createInputRDDUnsafe(sc, sizeInGB, numParts, dir, replica)
+    val input = createMapPartitions(sc, sizeInGB, numParts, dir, replica)
 
     val partitioner = new UnsafePartitioner(numParts)
     val shuffled = new ShuffledRDD(input, partitioner)
@@ -97,15 +97,13 @@ object IndySort extends Logging {
       logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
       println(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
 
-      buildLongPointers(sortBuffer, offset)
       val pointers = sortBuffer.pointers
-
       val numRecords = (offset / 100).toInt
 
         // Sort!!!
       {
         val startTime = System.currentTimeMillis
-        sortWithKeys(sortBuffer, 0, numRecords)
+        sortWithKeys(sortBuffer, numRecords)
         val timeTaken = System.currentTimeMillis - startTime
         logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
         println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
@@ -140,17 +138,6 @@ object IndySort extends Logging {
 
     println("total number of records: " + recordsAfterSort)
   }
-
-  final val UNSAFE: sun.misc.Unsafe = {
-    val unsafeField = classOf[sun.misc.Unsafe].getDeclaredField("theUnsafe")
-    unsafeField.setAccessible(true)
-    unsafeField.get().asInstanceOf[sun.misc.Unsafe]
-  }
-
-  final val BYTE_ARRAY_BASE_OFFSET: Long = UNSAFE.arrayBaseOffset(classOf[Array[Byte]])
-
-  /** A thread local variable storing a pointer to the buffer allocated off-heap. */
-  val sortBuffers = new ThreadLocal[SortBuffer]
 
   def readFileIntoBuffer(inputFile: String, sortBuffer: SortBuffer) {
     logInfo(s"XXX start reading file $inputFile")
@@ -197,24 +184,7 @@ object IndySort extends Logging {
     assert(read == fileSize)
   }
 
-  def buildLongPointers(sortBuffer: SortBuffer, bufferSize: Long) {
-    val startTime = System.currentTimeMillis()
-    // Create the pointers array
-    var pos = 0L
-    var i = 0
-    val pointers = sortBuffer.pointers
-    while (pos < bufferSize) {
-      pointers(i) = sortBuffer.address + pos
-      pos += 100
-      i += 1
-    }
-    val timeTaken = System.currentTimeMillis() - startTime
-    logInfo(s"XXX finished building index, took $timeTaken ms")
-    println(s"XXX finished building index, took $timeTaken ms")
-    scala.Console.flush()
-  }
-
-  def createInputRDDUnsafe(
+  def createMapPartitions(
       sc: SparkContext,
       sizeInGB: Int,
       numParts: Int,
@@ -257,12 +227,11 @@ object IndySort extends Logging {
 
         readFileIntoBuffer(inputFile, sortBuffer)
         diskSemaphore.release()
-        buildLongPointers(sortBuffer, fileSize)
 
         // Sort!!!
         {
           val startTime = System.currentTimeMillis
-          sortWithKeys(sortBuffer, 0, recordsPerPartition.toInt)
+          sortWithKeys(sortBuffer, recordsPerPartition.toInt)
           val timeTaken = System.currentTimeMillis - startTime
           logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
           println(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
@@ -273,101 +242,4 @@ object IndySort extends Logging {
       }
     }
   }
-
-  // Sort a range of a SortBuffer using only the keys, then update the pointers field to match
-  // sorted order. Unlike the other sort methods, this copies the keys into an array of Longs
-  // (with 2 Longs per record in the buffer to capture the 10-byte key and its index) and sorts
-  // them without having to look up random locations in the original data on each comparison.
-  private def sortWithKeys(sortBuf: SortBuffer, start: Int, end: Int) {
-    val keys = sortBuf.keys
-    val pointers = sortBuf.pointers
-    val baseAddress = sortBuf.address
-    import java.lang.Long.reverseBytes
-
-    // Fill in the keys array
-    var i = 0
-    while (i < end - start) {
-      val index = (pointers(start + i) - baseAddress) / 100
-      //assert(index >= 0L && index <= 0xFFFFFFFFL)
-      val headBytes = // First 7 bytes
-        reverseBytes(UNSAFE.getLong(pointers(start + i))) >>> 8
-      val tailBytes = // Last 3 bytes
-        reverseBytes(UNSAFE.getLong(pointers(start + i) + 7)) >>> (8 * 5)
-      keys(2 * i) = headBytes
-      keys(2 * i + 1) = (tailBytes << 32) | index
-      i += 1
-    }
-
-    // Sort it
-    new Sorter(new LongPairArraySorter).sort(keys, 0, end - start, longPairOrdering)
-
-    // Fill back the pointers array
-    i = 0
-    while (i < end - start) {
-      pointers(start + i) = baseAddress + (keys(2 * i + 1) & 0xFFFFFFFFL) * 100
-      i += 1
-    }
-
-    /*
-    // Validate that the data is sorted
-    i = start
-    while (i < end - 1) {
-      assert(ord.compare(pointers(i), pointers(i + 1)) <= 0)
-      i += 1
-    }
-    */
-  }
-
-  final class LongPairArraySorter extends SortDataFormat[(Long, Long), Array[Long]] {
-    /** Return the sort key for the element at the given index. */
-    override protected def getKey(data: Array[Long], pos: Int): (Long, Long) = {
-      (data(2 * pos), data(2 * pos + 1))
-    }
-
-    /** Swap two elements. */
-    override protected def swap(data: Array[Long], pos0: Int, pos1: Int) {
-      var tmp = data(2 * pos0)
-      data(2 * pos0) = data(2 * pos1)
-      data(2 * pos1) = tmp
-      tmp = data(2 * pos0 + 1)
-      data(2 * pos0 + 1) = data(2 * pos1 + 1)
-      data(2 * pos1 + 1) = tmp
-    }
-
-    /** Copy a single element from src(srcPos) to dst(dstPos). */
-    override protected def copyElement(src: Array[Long], srcPos: Int,
-                                       dst: Array[Long], dstPos: Int) {
-      dst(2 * dstPos) = src(2 * srcPos)
-      dst(2 * dstPos + 1) = src(2 * srcPos + 1)
-    }
-
-    /**
-     * Copy a range of elements starting at src(srcPos) to dst, starting at dstPos.
-     * Overlapping ranges are allowed.
-     */
-    override protected def copyRange(src: Array[Long], srcPos: Int,
-                                     dst: Array[Long], dstPos: Int, length: Int) {
-      System.arraycopy(src, 2 * srcPos, dst, 2 * dstPos, 2 * length)
-    }
-
-    /**
-     * Allocates a Buffer that can hold up to 'length' elements.
-     * All elements of the buffer should be considered invalid until data is explicitly copied in.
-     */
-    override protected def allocate(length: Int): Array[Long] = new Array[Long](2 * length)
-  }
-
-  final class LongPairOrdering extends Ordering[(Long, Long)] {
-    override def compare(left: (Long, Long), right: (Long, Long)): Int = {
-      val c1 = java.lang.Long.compare(left._1, right._1)
-      if (c1 != 0) {
-        c1
-      } else {
-        java.lang.Long.compare(left._2, right._2)
-      }
-    }
-  }
-
-  val longPairOrdering = new LongPairOrdering
-
 }

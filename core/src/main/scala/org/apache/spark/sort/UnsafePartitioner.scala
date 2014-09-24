@@ -15,7 +15,6 @@ case class UnsafePartitioner(numPartitions: Int) extends Partitioner {
     } else {
       range / numPartitions + 1
     }
-    println("rangePerPart: " + r)
     r
   }
 
@@ -36,27 +35,26 @@ case class UnsafePartitioner(numPartitions: Int) extends Partitioner {
    */
   override def getPartition(key: Any): Int = {
     val addr: Long = key.asInstanceOf[Long]
-    val prefix = IndySort.UNSAFE.getLong(addr)
+    val prefix = SortUtils.UNSAFE.getLong(addr)
     ((java.lang.Long.reverseBytes(prefix) >>> 8) / rangePerPart).toInt
   }
 }
 
 object UnsafePartitioner {
-  import IndySort.UNSAFE
 
   val min = Longs.fromBytes(0, 0, 0, 0, 0, 0, 0, 0)
   val max = Longs.fromBytes(0, -1, -1, -1, -1, -1, -1, -1)  // 0xff = -1
 
   /** Test code */
   def main(args: Array[String]) {
-    val addr = IndySort.UNSAFE.allocateMemory(10)
+    val addr = SortUtils.UNSAFE.allocateMemory(10)
     val bytes: Array[Byte] = (1 to 10).map(_.toByte).toArray
     assert(bytes.length == 10)
 
     println("add is " + addr)
-    IndySort.UNSAFE.copyMemory(bytes, IndySort.BYTE_ARRAY_BASE_OFFSET, null, addr, 10L)
+    SortUtils.UNSAFE.copyMemory(bytes, SortUtils.BYTE_ARRAY_BASE_OFFSET, null, addr, 10L)
 
-    val prefix = IndySort.UNSAFE.getLong(addr)
+    val prefix = SortUtils.UNSAFE.getLong(addr)
     println(java.lang.Long.toHexString(java.lang.Long.reverseBytes(prefix) >>> 8))
 
     println("--------------------------------------")
@@ -71,8 +69,8 @@ object UnsafePartitioner {
   }
 
   private def createOffHeapBuf(bytes: Array[Byte]): Long = {
-    val addr = UNSAFE.allocateMemory(bytes.length)
-    UNSAFE.copyMemory(bytes, IndySort.BYTE_ARRAY_BASE_OFFSET, null, addr, bytes.length)
+    val addr = SortUtils.UNSAFE.allocateMemory(bytes.length)
+    SortUtils.UNSAFE.copyMemory(bytes, SortUtils.BYTE_ARRAY_BASE_OFFSET, null, addr, bytes.length)
     addr
   }
 }
