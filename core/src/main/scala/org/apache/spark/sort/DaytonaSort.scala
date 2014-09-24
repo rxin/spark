@@ -1,7 +1,6 @@
 package org.apache.spark.sort
 
 import java.io._
-import java.nio.ByteBuffer
 
 import io.netty.buffer.ByteBuf
 
@@ -82,8 +81,9 @@ object DaytonaSort extends Logging {
             val fs = new FileInputStream(buf.file)
             val channel = fs.getChannel
             channel.position(buf.offset)
-            // Each shuffle block should not be bigger than 4MB.
-            assert(buf.length < 4 * 1024 * 1024)
+            // Each shuffle block should not be bigger than our io buf capacity
+            assert(buf.length < sortBuffer.ioBuf.capacity,
+              s"buf length is ${buf.length}} while capacity is ${sortBuffer.ioBuf.capacity}")
             sortBuffer.ioBuf.clear()
             sortBuffer.ioBuf.limit(buf.length.toInt)
             sortBuffer.setIoBufAddress(sortBuffer.address + offset)
@@ -157,56 +157,6 @@ object DaytonaSort extends Logging {
   }
 
   final val BYTE_ARRAY_BASE_OFFSET: Long = UNSAFE.arrayBaseOffset(classOf[Array[Byte]])
-
-  /**
-   * A class to hold information needed to run sort within each partition.
-   *
-   * @param capacity number of records the buffer can support. Each record is 100 bytes.
-   */
-  final class SortBuffer(capacity: Long) {
-    require(capacity <= Int.MaxValue)
-
-    /** size of the buffer, starting at [[address]] */
-    val len: Long = capacity * 100
-
-    /** address pointing to a block of memory off heap */
-    val address: Long = {
-      val blockSize = capacity * 100
-      val blockAddress = UNSAFE.allocateMemory(blockSize)
-      logInfo(s"XXX Allocating $blockSize bytes ... allocated at $blockAddress")
-      println(s"XXX Allocating $blockSize bytes ... allocated at $blockAddress")
-      blockAddress
-    }
-
-    /**
-     * A dummy direct buffer. We use this in a very unconventional way. We use reflection to
-     * change the address of the offheap memory to our large buffer, and then use channel read
-     * to directly read the data into our large buffer.
-     *
-     * i.e. the 4MB allocated here is not used at all. We are only the 4MB for tracking.
-     */
-    //val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(4 * 1024 * 1024)
-    val ioBuf: ByteBuffer = ByteBuffer.allocateDirect(5 * 1000 * 1000)
-
-    /** list of pointers to each block, used for sorting. */
-    var pointers: Array[Long] = new Array[Long](capacity.toInt)
-
-    /** an array of 2 * capacity longs that we can use for records holding our keys */
-    val keys: Array[Long] = new Array[Long](2 * capacity.toInt)
-
-    private[this] val ioBufAddressField = {
-      val f = classOf[java.nio.Buffer].getDeclaredField("address")
-      f.setAccessible(true)
-      f
-    }
-
-    /** Return the memory address of the memory the [[ioBuf]] points to. */
-    def ioBufAddress: Long = ioBufAddressField.getLong(ioBuf)
-
-    def setIoBufAddress(addr: Long) = {
-      ioBufAddressField.setLong(ioBuf, addr)
-    }
-  }
 
   /** A thread local variable storing a pointer to the buffer allocated off-heap. */
   val sortBuffers = new ThreadLocal[SortBuffer]
