@@ -2,18 +2,15 @@ package org.apache.spark.sort
 
 import java.io._
 import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicInteger
 
 import _root_.io.netty.buffer.ByteBuf
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{LocatedFileStatus, RemoteIterator, Path}
-import org.apache.hadoop.io.nativeio.NativeIO
+import org.apache.hadoop.fs.{FSDataOutputStream, LocatedFileStatus, RemoteIterator, Path}
 import org.apache.spark._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
-import org.apache.spark.sort.old.Sort
 import org.apache.spark.util.collection.{Sorter, SortDataFormat}
 
 /**
@@ -31,6 +28,7 @@ object UnsafeSortHDFS extends Logging {
     val numParts = args(1).toInt
     val dir = args(2) + s"/sort-${sizeInGB}g-$numParts"
     val replica = args(3).toInt
+    val outputDir = dir + "-out"
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
@@ -39,15 +37,22 @@ object UnsafeSortHDFS extends Logging {
     val sc = new SparkContext(new SparkConf().setAppName(
       s"UnsafeSortHDFS - $sizeInGB GB - $numParts parts $replica replica - ${args(2)}"))
 
+    val conf = new org.apache.hadoop.conf.Configuration
+    val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+    val root = new Path(outputDir)
+    if (fs.exists(root)) {
+      fs.mkdirs(root)
+    }
+
     val input = createInputRDDUnsafe(sc, sizeInGB, numParts, dir, replica, pipeline = false)
 
     val partitioner = new UnsafePartitioner(numParts)
     val shuffled = new ShuffledRDD(input, partitioner)
       .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
-    val recordsAfterSort: Long = shuffled.mapPartitionsWithIndex { (part, iter) =>
-      val baseFolder = dir + "-out"
-      val outputFile = s"$baseFolder/part$part.dat"
+    val recordsAfterSort: Long = shuffled.mapPartitionsWithContext { (context, iter) =>
+      val part = context.partitionId
+      val outputFile = s"$outputDir/part$part.dat"
 
       val startTime = System.currentTimeMillis()
       val sortBuffer = sortBuffers.get()
@@ -100,24 +105,27 @@ object UnsafeSortHDFS extends Logging {
       val numRecords = (offset / 100).toInt
 
       // Sort!!!
-    {
-      val startTime = System.currentTimeMillis
-      //val sorter = new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, numRecords, ord)
-      sortWithKeys(sortBuffer, 0, numRecords)
-      val timeTaken = System.currentTimeMillis - startTime
-      logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
-      println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
-      scala.Console.flush()
-    }
+      {
+        val startTime = System.currentTimeMillis
+        //val sorter = new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, numRecords, ord)
+        sortWithKeys(sortBuffer, 0, numRecords)
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
+        println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
+        scala.Console.flush()
+      }
 
       val count: Long = {
         val startTime = System.currentTimeMillis
-        if (!new File(baseFolder).exists()) {
-          new File(baseFolder).mkdirs()
-        }
+
         logInfo(s"XXX Reduce: writing $numRecords records started $outputFile")
         println(s"XXX Reduce: writing $numRecords records started $outputFile")
-        val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
+        val conf = new org.apache.hadoop.conf.Configuration
+        val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+
+        val tempFile = outputFile + s".${context.partitionId}.${context.attemptId}.tmp"
+
+        val os = fs.create(new Path(tempFile), replica.toShort)
         val buf = new Array[Byte](100)
         val arrOffset = BYTE_ARRAY_BASE_OFFSET
         var i = 0
@@ -128,6 +136,8 @@ object UnsafeSortHDFS extends Logging {
           i += 1
         }
         os.close()
+        fs.rename(new Path(tempFile), new Path(outputFile))
+
         val timeTaken = System.currentTimeMillis - startTime
         logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
         println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
@@ -200,40 +210,30 @@ object UnsafeSortHDFS extends Logging {
   /** A thread local variable storing a pointer to the buffer allocated off-heap. */
   val sortBuffers = new ThreadLocal[SortBuffer]
 
-  def readFileIntoBuffer(inputFile: String, sortBuffer: SortBuffer) {
+  def readFileIntoBuffer(inputFile: String, fileSize: Long, sortBuffer: SortBuffer) {
     logInfo(s"XXX start reading file $inputFile")
     println(s"XXX start reading file $inputFile")
     val startTime = System.currentTimeMillis()
-    val fileSize = new File(inputFile).length
     assert(fileSize % 100 == 0)
 
+    val conf = new Configuration()
+    val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+    val path = new Path(inputFile)
+    var is: InputStream = null
+
     val baseAddress: Long = sortBuffer.address
-    var is: FileInputStream = null
-    var channel: FileChannel = null
+    val buf = new Array[Byte](4 * 1024 * 1024)
     var read = 0L
     try {
-      is = new FileInputStream(inputFile)
-      channel = is.getChannel()
+      is = fs.open(path, 4 * 1024 * 1024)
       while (read < fileSize) {
-        // This should read read0 bytes directly into our buffer
-        sortBuffer.setIoBufAddress(baseAddress + read)
-        val read0 = channel.read(sortBuffer.ioBuf)
-        sortBuffer.ioBuf.clear()
+        val read0 = is.read()
+        assert(read0 > 0)
+        UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, baseAddress, read0)
         read += read0
       }
-
-      // Drop from buffer cache
-      NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
-        inputFile,
-        is.getFD,
-        0,
-        fileSize,
-        NativeIO.POSIX.POSIX_FADV_DONTNEED)
-
+      assert(read == fileSize)
     } finally {
-      if (channel != null) {
-        channel.close()
-      }
       if (is != null) {
         is.close()
       }
@@ -297,8 +297,6 @@ object UnsafeSortHDFS extends Logging {
     logInfo(s"XXX took $timeTaken ms to get file metadata")
     println(s"XXX took $timeTaken ms to get file metadata")
 
-    System.exit(1)
-
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val totalRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
@@ -318,7 +316,7 @@ object UnsafeSortHDFS extends Logging {
 
         val sortBuffer = sortBuffers.get()
 
-        readFileIntoBuffer(inputFile, sortBuffer)
+        readFileIntoBuffer(inputFile, fileSize, sortBuffer)
         buildLongPointers(sortBuffer, fileSize)
 
         // Sort!!!
