@@ -1,5 +1,7 @@
 package org.apache.spark.sort
 
+import java.io.File
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{LocatedFileStatus, RemoteIterator, Path}
 import org.apache.spark.{TaskContext, Partition, SparkConf, SparkContext}
@@ -39,6 +41,13 @@ object CopyFromHdfsToLocal {
     val out = new NodeLocalRDD[(Int, String, String)](sc, files.length, inputs.map(_._2)) {
       override def compute(split: Partition, context: TaskContext) = {
         val input = inputs(split.index)._1
+
+        CopyFromHdfsToLocal.synchronized {
+          if (!new File(localFolder).exists()) {
+            new File(localFolder).mkdirs()
+          }
+        }
+
         Iterator(Utils.runCommand(
           s"/root/ephemeral-hdfs/bin/hdfs dfs -copyToLocal $input $localFolder/"))
       }
