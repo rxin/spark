@@ -75,7 +75,7 @@ object IndySort extends Logging {
             channel.position(buf.offset)
             // Each shuffle block should not be bigger than our io buf capacity
             assert(buf.length < sortBuffer.ioBuf.capacity,
-              s"buf length is {$buf.length} while capacity is ${sortBuffer.ioBuf.capacity}")
+              s"buf length is ${buf.length}} while capacity is ${sortBuffer.ioBuf.capacity}")
             sortBuffer.ioBuf.clear()
             sortBuffer.ioBuf.limit(buf.length.toInt)
             sortBuffer.setIoBufAddress(sortBuffer.address + offset)
