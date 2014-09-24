@@ -6,6 +6,7 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicInteger
 
 import _root_.io.netty.buffer.ByteBuf
+import com.google.common.primitives.UnsignedBytes
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{LocatedFileStatus, RemoteIterator, Path}
 import org.apache.spark._
@@ -301,6 +302,55 @@ object UnsafeSortHDFS extends Logging {
     val totalRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
 
+    /////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////
+    // Sample
+    {
+      val startTime = System.currentTimeMillis()
+      val samplePerPartition = 40
+      val numSampleKeys = numParts * samplePerPartition
+      val sampleKeys = new NodeLocalReplicaRDD[Array[Byte]](sc, numParts, replicatedHosts) {
+        override def compute(split: Partition, context: TaskContext) = {
+          val part = split.index
+          val inputFile = s"$dir/part$part.dat"
+          val fileSize = recordsPerPartition * 100
+
+          val conf = new Configuration()
+          val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+          val path = new Path(inputFile)
+          val is: InputStream = fs.open(path, 4 * 1024 * 1024)
+
+          val skip = recordsPerPartition / samplePerPartition * 100
+
+          val samples = new Array[Array[Byte]](samplePerPartition)
+          var sampleCount = 0
+          while (sampleCount < samplePerPartition) {
+            is.skip(sampleCount * skip)
+            // Read the first 10 byte, and save that.
+            val buf = new Array[Byte](10)
+            val read0 = is.read(buf)
+            assert(read0 == 10, s"read $read0 bytes instead of 10 bytes, " +
+              s"sampleCount $sampleCount, skip $skip")
+            sampleCount += 1
+          }
+
+          samples.iterator
+        }
+      }.collect()
+
+      val timeTaken = System.currentTimeMillis() - startTime
+      logInfo(s"XXXX sampling ${sampleKeys.size} keys took $timeTaken ms")
+
+      assert(sampleKeys.size == samplePerPartition * numParts,
+        s"expect sampledKeys to be ${samplePerPartition * numParts}, but got ${sampleKeys.size}")
+
+      java.util.Arrays.sort(sampleKeys, UnsignedBytes.lexicographicalComparator())
+      sampleKeys.foreach(x => println(x.toSeq))
+      System.exit(1)
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////
     new NodeLocalReplicaRDD[(Long, Array[Long])](sc, numParts, replicatedHosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
