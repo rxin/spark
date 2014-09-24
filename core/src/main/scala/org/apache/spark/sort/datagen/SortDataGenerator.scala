@@ -58,12 +58,13 @@ object SortDataGenerator {
         val conf = new org.apache.hadoop.conf.Configuration
         val fs = org.apache.hadoop.fs.FileSystem.get(conf)
 
+        val blockSize = (recordsPerPartition * 100 / 512 + 1) * 512
         val out = fs.create(
           new Path(tempFile),
           false,  // overwrite
           4 * 1024 * 1024,  // buffer size
           replica.toShort,  // replication
-          recordsPerPartition * 100  // block size
+          blockSize  // blocksize
         )
 
         val sum = new Unsigned16
