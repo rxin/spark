@@ -276,13 +276,22 @@ object UnsafeSortHDFS extends Logging {
     val path = new Path(dir)
     val statuses: RemoteIterator[LocatedFileStatus] = fs.listLocatedStatus(path)
 
+    val replicatedHosts = new Array[Seq[String]](numParts)
     val startTime = System.currentTimeMillis()
+    var i = 0
     while (statuses.hasNext) {
       val status = statuses.next()
+      val blocks = status.getBlockLocations
+      assert(blocks.size == 1)
 
-      status.getBlockLocations
-      println(status)
+      val partName = "part(\\d+).dat".r.findFirstIn(status.getPath.getName).get
+      val part = partName.replace("part", "").replace(".dat", "").toInt
+      replicatedHosts(part) = blocks.head.getHosts.toSeq
+      i += 1
     }
+    assert(i == numParts, "total file found: " + i)
+
+    replicatedHosts.zipWithIndex.foreach { case (a, i) => println(s"$i: $a") }
 
     val timeTaken = System.currentTimeMillis() - startTime
     logInfo(s"XXX took $timeTaken ms to get file metadata")
@@ -293,13 +302,6 @@ object UnsafeSortHDFS extends Logging {
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val totalRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
-
-    val hosts = Sort.readSlaves()
-    val replicatedHosts = Array.tabulate[Seq[String]](hosts.length) { i =>
-      Seq.tabulate[String](replica) { replicaIndex =>
-        hosts((i + replicaIndex) % hosts.length)
-      }
-    }
 
     new NodeLocalReplicaRDD[(Long, Array[Long])](sc, numParts, replicatedHosts) {
       override def compute(split: Partition, context: TaskContext) = {
