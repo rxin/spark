@@ -32,7 +32,7 @@ class UnsafeOrdering extends Ordering[Long] {
 
 object UnsafeOrdering {
   private final val UNSIGNED_MASK: Int = 0xFF
-  private final val UNSAFE: sun.misc.Unsafe = UnsafeSort.UNSAFE
+  private final val UNSAFE: sun.misc.Unsafe = IndySort.UNSAFE
 
   def main(args: Array[String]) {
 
@@ -91,7 +91,7 @@ object UnsafeOrdering {
 
   private def createOffHeapBuf(bytes: Array[Byte]): Long = {
     val addr = UNSAFE.allocateMemory(bytes.length)
-    UNSAFE.copyMemory(bytes, UnsafeSort.BYTE_ARRAY_BASE_OFFSET, null, addr, bytes.length)
+    UNSAFE.copyMemory(bytes, IndySort.BYTE_ARRAY_BASE_OFFSET, null, addr, bytes.length)
     addr
   }
 }

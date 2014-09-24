@@ -42,13 +42,13 @@ final class UnsafeSerializerInstance(ser: UnsafeSerializer) extends SerializerIn
 final class UnsafeSerializationStream(s: OutputStream) extends SerializationStream {
 
   private[this] val buf = new Array[Byte](100)
-  private[this] val BYTE_ARRAY_BASE_OFFSET = UnsafeSort.BYTE_ARRAY_BASE_OFFSET
+  private[this] val BYTE_ARRAY_BASE_OFFSET = IndySort.BYTE_ARRAY_BASE_OFFSET
 
   override def writeObject[T: ClassTag](t: T): SerializationStream = {
     // The record is expected to be (Long, Long), where _1 is the address of the record
     // Copy 100 bytes from the off-heap memory into buf, and write that out.
     val addr: Long = t.asInstanceOf[MutablePair[Long, Long]]._1
-    UnsafeSort.UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
+    IndySort.UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
     s.write(buf)
     this
   }
@@ -63,8 +63,8 @@ final class UnsafeDeserializationStream(s: InputStream, ser: UnsafeSerializer)
   extends DeserializationStream {
 
   private[this] val buf = new Array[Byte](100)
-  private[this] val BYTE_ARRAY_BASE_OFFSET: Long = UnsafeSort.BYTE_ARRAY_BASE_OFFSET
-  private[this] val sortBuffer = UnsafeSort.sortBuffers.get()
+  private[this] val BYTE_ARRAY_BASE_OFFSET: Long = IndySort.BYTE_ARRAY_BASE_OFFSET
+  private[this] val sortBuffer = IndySort.sortBuffers.get()
 
   override def readObject[T: ClassTag](): T = {
     // Read 100 bytes into the buffer, and then copy that into the off-heap block.
@@ -75,7 +75,7 @@ final class UnsafeDeserializationStream(s: InputStream, ser: UnsafeSerializer)
     }
     assert(read == 100)
     val addr = sortBuffer.address + ser.offset
-    UnsafeSort.UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, addr, 100)
+    IndySort.UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, addr, 100)
     ser.offset += 100
     (addr, 0L).asInstanceOf[T]
   }

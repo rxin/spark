@@ -2,12 +2,11 @@ package org.apache.spark.sort
 
 import java.io._
 import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
-import java.util.concurrent.Semaphore
-import java.util.concurrent.atomic.AtomicInteger
 
 import _root_.io.netty.buffer.ByteBuf
-import org.apache.hadoop.io.nativeio.NativeIO
+import com.google.common.primitives.UnsignedBytes
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{LocatedFileStatus, RemoteIterator, Path}
 import org.apache.spark._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
@@ -16,38 +15,42 @@ import org.apache.spark.util.collection.{Sorter, SortDataFormat}
 /**
  * A version of the sort code that uses Unsafe to allocate off-heap blocks.
  */
-object UnsafeSort extends Logging {
-
-  val ord = new UnsafeOrdering
-
-  private[this] val numTasksOnExecutor = new AtomicInteger
-
-  private[this] val semaphores = java.util.Collections.synchronizedMap(
-    new java.util.HashMap[String, Semaphore])
+object DaytonaSort extends Logging {
 
   def main(args: Array[String]): Unit = {
+    if (args.length < 4) {
+      println("DaytonaSort [sizeInGB] [numParts] [replica] [input-dir]")
+    }
+
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
-    val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts")
-    val replica = args(3).toInt
-    val pipeline = args(4).toBoolean
+    val replica = args(2).toInt
+    val dir = args(3)
+    val outputDir = dir + "-out"
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val sc = new SparkContext(new SparkConf().setAppName(
-      s"UnsafeSort - $sizeInGB GB - $numParts parts $replica replica - ${args(2)} - " +
-      (if (pipeline) "pipeline" else "no-pipeline")))
-    val input = createInputRDDUnsafe(sc, sizeInGB, numParts, dirs, replica, pipeline)
+      s"UnsafeSortHDFS - $sizeInGB GB - $numParts parts $replica replica - $dir"))
+
+    val conf = new org.apache.hadoop.conf.Configuration
+    val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+    val root = new Path(outputDir)
+    if (fs.exists(root)) {
+      fs.mkdirs(root)
+    }
+
+    val input = createInputRDDUnsafe(sc, sizeInGB, numParts, dir, replica, pipeline = false)
 
     val partitioner = new UnsafePartitioner(numParts)
     val shuffled = new ShuffledRDD(input, partitioner)
       .setSerializer(new UnsafeSerializer(recordsPerPartition))
 
-    val recordsAfterSort: Long = shuffled.mapPartitionsWithIndex { (part, iter) =>
-      val baseFolder = dirs(numTasksOnExecutor.getAndIncrement() % dirs.size) + "-out"
-      val outputFile = s"$baseFolder/part$part.dat"
+    val recordsAfterSort: Long = shuffled.mapPartitionsWithContext { (context, iter) =>
+      val part = context.partitionId
+      val outputFile = s"$outputDir/part$part.dat"
 
       val startTime = System.currentTimeMillis()
       val sortBuffer = sortBuffers.get()
@@ -100,24 +103,27 @@ object UnsafeSort extends Logging {
       val numRecords = (offset / 100).toInt
 
       // Sort!!!
-    {
-      val startTime = System.currentTimeMillis
-      //val sorter = new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, numRecords, ord)
-      sortWithKeys(sortBuffer, 0, numRecords)
-      val timeTaken = System.currentTimeMillis - startTime
-      logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
-      println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
-      scala.Console.flush()
-    }
+      {
+        val startTime = System.currentTimeMillis
+        //val sorter = new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, numRecords, ord)
+        sortWithKeys(sortBuffer, 0, numRecords)
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
+        println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
+        scala.Console.flush()
+      }
 
       val count: Long = {
         val startTime = System.currentTimeMillis
-        if (!new File(baseFolder).exists()) {
-          new File(baseFolder).mkdirs()
-        }
+
         logInfo(s"XXX Reduce: writing $numRecords records started $outputFile")
         println(s"XXX Reduce: writing $numRecords records started $outputFile")
-        val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
+        val conf = new org.apache.hadoop.conf.Configuration
+        val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+
+        val tempFile = outputFile + s".${context.partitionId}.${context.attemptId}.tmp"
+
+        val os = fs.create(new Path(tempFile), replica.toShort)
         val buf = new Array[Byte](100)
         val arrOffset = BYTE_ARRAY_BASE_OFFSET
         var i = 0
@@ -128,6 +134,8 @@ object UnsafeSort extends Logging {
           i += 1
         }
         os.close()
+        fs.rename(new Path(tempFile), new Path(outputFile))
+
         val timeTaken = System.currentTimeMillis - startTime
         logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
         println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
@@ -180,9 +188,6 @@ object UnsafeSort extends Logging {
     /** list of pointers to each block, used for sorting. */
     var pointers: Array[Long] = new Array[Long](capacity.toInt)
 
-    /** a second pointers array to facilitate merge-sort */
-    var pointers2: Array[Long] = new Array[Long](capacity.toInt)
-
     /** an array of 2 * capacity longs that we can use for records holding our keys */
     val keys: Array[Long] = new Array[Long](2 * capacity.toInt)
 
@@ -203,40 +208,30 @@ object UnsafeSort extends Logging {
   /** A thread local variable storing a pointer to the buffer allocated off-heap. */
   val sortBuffers = new ThreadLocal[SortBuffer]
 
-  def readFileIntoBuffer(inputFile: String, sortBuffer: SortBuffer) {
+  def readFileIntoBuffer(inputFile: String, fileSize: Long, sortBuffer: SortBuffer) {
     logInfo(s"XXX start reading file $inputFile")
-    println(s"XXX start reading file $inputFile")
+    println(s"XXX start reading file $inputFile with size $fileSize")
     val startTime = System.currentTimeMillis()
-    val fileSize = new File(inputFile).length
     assert(fileSize % 100 == 0)
 
+    val conf = new Configuration()
+    val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+    val path = new Path(inputFile)
+    var is: InputStream = null
+
     val baseAddress: Long = sortBuffer.address
-    var is: FileInputStream = null
-    var channel: FileChannel = null
+    val buf = new Array[Byte](4 * 1024 * 1024)
     var read = 0L
     try {
-      is = new FileInputStream(inputFile)
-      channel = is.getChannel()
+      is = fs.open(path, 4 * 1024 * 1024)
       while (read < fileSize) {
-        // This should read read0 bytes directly into our buffer
-        sortBuffer.setIoBufAddress(baseAddress + read)
-        val read0 = channel.read(sortBuffer.ioBuf)
-        sortBuffer.ioBuf.clear()
+        val read0 = is.read(buf)
+        assert(read0 > 0, s"only read $read0 bytes this time; read $read; total $fileSize")
+        UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, baseAddress + read, read0)
         read += read0
       }
-
-      // Drop from buffer cache
-      NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
-        inputFile,
-        is.getFD,
-        0,
-        fileSize,
-        NativeIO.POSIX.POSIX_FADV_DONTNEED)
-
+      assert(read == fileSize)
     } finally {
-      if (channel != null) {
-        channel.close()
-      }
       if (is != null) {
         is.close()
       }
@@ -265,90 +260,123 @@ object UnsafeSort extends Logging {
     scala.Console.flush()
   }
 
-  /**
-   * Find the input file in the dirs. Return (base path, full path). The base path can be used
-   * for resource coordination.
-   */
-  def findInputFile(dirs: Seq[String], part: Int): (String, String) = {
-    var i = 0
-    while (i < dirs.size) {
-      val path = dirs(i) + s"/part$part.dat"
-      if (new File(path).exists()) {
-        return (dirs(i), path)
-      }
-      i += 1
-    }
-    throw new FileNotFoundException(s"/part$part.dat")
-  }
-
   def createInputRDDUnsafe(
       sc: SparkContext,
       sizeInGB: Int,
       numParts: Int,
-      dirs: Seq[String],
+      dir: String,
       replica: Int,
       pipeline: Boolean)
-    : RDD[(Long, Array[Long])] = {
+  : RDD[(Long, Array[Long])] = {
+
+    val conf = new Configuration()
+    val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+    val path = new Path(dir)
+    val statuses: RemoteIterator[LocatedFileStatus] = fs.listLocatedStatus(path)
+
+    val replicatedHosts = new Array[Seq[String]](numParts)
+    val startTime = System.currentTimeMillis()
+    var i = 0
+    while (statuses.hasNext) {
+      val status = statuses.next()
+      val filename = status.getPath.toString
+      val blocks = status.getBlockLocations
+      assert(blocks.size == 1, s"found blocks for $filename: " + blocks.toSeq)
+
+      val partName = "part(\\d+).dat".r.findFirstIn(status.getPath.getName).get
+      val part = partName.replace("part", "").replace(".dat", "").toInt
+      replicatedHosts(part) = blocks.head.getHosts.toSeq
+      i += 1
+    }
+    assert(i == numParts, "total file found: " + i)
+
+    replicatedHosts.zipWithIndex.foreach { case (a, i) => println(s"$i: $a") }
+
+    val timeTaken = System.currentTimeMillis() - startTime
+    logInfo(s"XXX took $timeTaken ms to get file metadata")
+    println(s"XXX took $timeTaken ms to get file metadata")
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val totalRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
 
-    val hosts = Utils.readSlaves()
-    val replicatedHosts = Array.tabulate[Seq[String]](hosts.length) { i =>
-      Seq.tabulate[String](replica) { replicaIndex =>
-        hosts((i + replicaIndex) % hosts.length)
-      }
+    /////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////
+    // Sample
+    {
+      val startTime = System.currentTimeMillis()
+      val samplePerPartition = 40
+      val numSampleKeys = numParts * samplePerPartition
+      val sampleKeys = new NodeLocalReplicaRDD[Array[Byte]](sc, numParts, replicatedHosts) {
+        override def compute(split: Partition, context: TaskContext) = {
+          val part = split.index
+          val inputFile = s"$dir/part$part.dat"
+          val fileSize = recordsPerPartition * 100
+
+          val conf = new Configuration()
+          val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+          val path = new Path(inputFile)
+          val is = fs.open(path, 4 * 1024 * 1024)
+
+          val skip = recordsPerPartition / samplePerPartition * 100
+
+          val samples = new Array[Array[Byte]](samplePerPartition)
+          var sampleCount = 0
+          while (sampleCount < samplePerPartition) {
+            is.seek(sampleCount * skip)
+            // Read the first 10 byte, and save that.
+            val buf = new Array[Byte](10)
+            val read0 = is.read(buf)
+            assert(read0 == 10, s"read $read0 bytes instead of 10 bytes, " +
+              s"sampleCount $sampleCount, skip $skip")
+            samples(sampleCount) = buf
+            sampleCount += 1
+          }
+
+          samples.iterator
+        }
+      }.collect()
+
+      val timeTaken = System.currentTimeMillis() - startTime
+      logInfo(s"XXXX sampling ${sampleKeys.size} keys took $timeTaken ms")
+
+      assert(sampleKeys.size == samplePerPartition * numParts,
+        s"expect sampledKeys to be ${samplePerPartition * numParts}, but got ${sampleKeys.size}")
+
+      java.util.Arrays.sort(sampleKeys, UnsignedBytes.lexicographicalComparator())
+      sampleKeys.foreach(x => println(x.toSeq))
+      System.exit(1)
     }
 
+    /////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////
     new NodeLocalReplicaRDD[(Long, Array[Long])](sc, numParts, replicatedHosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
 
-        val (basePath, inputFile) = findInputFile(dirs, part)
-        val fileSize = new File(inputFile).length
-        assert(fileSize % 100 == 0)
+        val inputFile = s"$dir/part$part.dat"
+        val fileSize = recordsPerPartition * 100
 
         if (sortBuffers.get == null) {
           // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
           val capacity = recordsPerPartition + recordsPerPartition / 10
           sortBuffers.set(new SortBuffer(capacity))
         }
-        // Coordinate so only one thread is reading from one path at a time.
-        // This can hopefully improve pipelining of tasks.
-        semaphores.synchronized {
-          if (semaphores.get(basePath) == null) {
-            semaphores.put(basePath, new Semaphore(1))
-          }
-        }
-        val sem = semaphores.get(basePath)
 
         val sortBuffer = sortBuffers.get()
 
-        if (pipeline) {
-          readFileAndSort(inputFile, sortBuffer, sem)
-        } else {
-          {
-            logInfo(s"trying to acquire semaphore for $basePath")
-            val startTime = System.currentTimeMillis
-            sem.acquire()
-            logInfo(s"acquired semaphore for $basePath took " + (System.currentTimeMillis - startTime) + " ms")
-          }
+        readFileIntoBuffer(inputFile, fileSize, sortBuffer)
+        buildLongPointers(sortBuffer, fileSize)
 
-          readFileIntoBuffer(inputFile, sortBuffer)
-          sem.release()
-          buildLongPointers(sortBuffer, fileSize)
-
-          // Sort!!!
-          {
-            val startTime = System.currentTimeMillis
-            //new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
-            sortWithKeys(sortBuffer, 0, recordsPerPartition.toInt)
-            val timeTaken = System.currentTimeMillis - startTime
-            logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
-            println(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
-            scala.Console.flush()
-          }
+        // Sort!!!
+        {
+          val startTime = System.currentTimeMillis
+          //new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
+          sortWithKeys(sortBuffer, 0, recordsPerPartition.toInt)
+          val timeTaken = System.currentTimeMillis - startTime
+          logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
+          println(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
+          scala.Console.flush()
         }
 
         Iterator((recordsPerPartition, sortBuffer.pointers))
@@ -356,158 +384,6 @@ object UnsafeSort extends Logging {
     }
   }
 
-
-  /** Read chunks from a file and sort them in a background thread, producing a sorted buffer at the end */
-  def readFileAndSort(inputFile: String, sortBuffer: SortBuffer, sem: Semaphore) {
-    logInfo(s"reading and sorting file $inputFile")
-    var startTime = System.currentTimeMillis()
-    val fileSize = new File(inputFile).length
-    assert(fileSize % 100 == 0)
-    assert(sortBuffer.ioBuf.limit % 100 == 0, "buffer limit is " + sortBuffer.ioBuf.limit)
-
-    // Size of chunks we'll sort in the background thread; this is set to get 100 chunks
-    val chunkSize = 100 * sortBuffer.ioBuf.limit
-
-    // A queue of requests we send to the thread; each one specifies a range in the buffer that
-    // we're ready to sort (as record indices), except when we pass in (-1, -1) for the last one
-    val sortRequests = new java.util.concurrent.LinkedBlockingQueue[(Int, Int)]
-
-    // A set of sorted ranges we have in our buffer (specified as record indices); we use this to
-    // merge-sort later
-    var sortedRanges = new scala.collection.mutable.ArrayBuffer[(Int, Int)]
-
-    val backgroundThread = new Thread() {
-      override def run() {
-        while (true) {
-          val range = sortRequests.take()
-          if (range == (-1, -1)) {
-            return
-          }
-          //new Sorter(new LongArraySorter).sort(sortBuffer.pointers, range._1, range._2, ord)
-          //radixSort(sortBuffer, range._1, range._2)
-          sortWithKeys(sortBuffer, range._1, range._2)
-        }
-      }
-    }
-    backgroundThread.start()
-
-    val baseAddress: Long = sortBuffer.address
-
-    // Initialize pointers array since we use it for sorting
-    var pos = 0L
-    var i = 0
-    val pointers = sortBuffer.pointers
-    while (pos < fileSize) {
-      pointers(i) = baseAddress + pos
-      pos += 100
-      i += 1
-    }
-    {
-      logInfo(s"trying to acquire semaphore for $inputFile")
-      val startTime = System.currentTimeMillis
-      sem.acquire()
-      logInfo(s"acquired semaphore for $inputFile took " + (System.currentTimeMillis - startTime) + " ms")
-    }
-    var is: FileInputStream = null
-    var channel: FileChannel = null
-    var read = 0L
-    try {
-      is = new FileInputStream(inputFile)
-      channel = is.getChannel()
-      while (read < fileSize) {
-        // This should read read0 bytes directly into our buffer
-        sortBuffer.setIoBufAddress(baseAddress + read)
-        val read0 = channel.read(sortBuffer.ioBuf)
-        //UNSAFE.copyMemory(sortBuffer.ioBufAddress, baseAddress + read, read0)
-        sortBuffer.ioBuf.clear()
-        read += read0
-        if (read % chunkSize == 0) {
-          val range = (((read - chunkSize) / 100).toInt, (read / 100).toInt)
-          sortRequests.put(range)
-          sortedRanges += range
-        }
-      }
-      if (read % chunkSize != 0) {
-        val range = (((read - (read % chunkSize)) / 100).toInt, (read / 100).toInt)
-        sortRequests.put(range)
-        sortedRanges += range
-      }
-    } finally {
-      if (channel != null) {
-        channel.close()
-      }
-      if (is != null) {
-        is.close()
-      }
-    }
-    sem.release()
-    sortRequests.put((-1, -1))
-    backgroundThread.join()
-
-    var timeTaken = System.currentTimeMillis() - startTime
-    logInfo(s"finished reading and sorting chunks in $inputFile ($read bytes), took $timeTaken ms")
-    println(s"finished reading and sorting chunks in $inputFile ($read bytes), took $timeTaken ms")
-    scala.Console.flush()
-    assert(read == fileSize)
-
-    // Merge the sorted ranges, two by two, until we're down to one range
-    startTime = System.currentTimeMillis()
-    while (sortedRanges.size > 1) {
-      println("sorted ranges: " + sortedRanges.mkString(", "))
-      val newRanges = new scala.collection.mutable.ArrayBuffer[(Int, Int)]
-      val pointers = sortBuffer.pointers
-      val pointers2 = sortBuffer.pointers2
-      var i = 0
-      val end = sortedRanges.size / 2
-      while (i < end) {
-        val (s1, e1) = sortedRanges(2 * i)
-        val (s2, e2) = sortedRanges(2 * i + 1)
-        assert(e1 == s2)
-        // Merge the records from the two ranges into pointers2
-        var i1 = s1
-        var i2 = s2
-        var pos = s1
-        while (i1 < e1 && i2 < e2) {
-          if (ord.compare(pointers(i1), pointers(i2)) < 0) {
-            pointers2(pos) = pointers(i1)
-            i1 += 1
-            pos += 1
-          } else {
-            pointers2(pos) = pointers(i2)
-            i2 += 1
-            pos += 1
-          }
-        }
-        while (i1 < e1) {
-          pointers2(pos) = pointers(i1)
-          i1 += 1
-          pos += 1
-        }
-        while (i2 < e2) {
-          pointers2(pos) = pointers(i2)
-          i2 += 1
-          pos += 1
-        }
-        newRanges += ((s1, e2))
-        i += 1
-      }
-      if (sortedRanges.size % 2 == 1) {
-        // Copy in the last range unmodified
-        val range = sortedRanges.last
-        newRanges += range
-        System.arraycopy(pointers, range._1, pointers2, range._1, range._2 - range._1)
-      }
-      sortBuffer.pointers = pointers2
-      sortBuffer.pointers2 = pointers
-      sortedRanges = newRanges
-    }
-
-    timeTaken = System.currentTimeMillis() - startTime
-    logInfo(s"XXX finished merge pass of $inputFile ($read bytes), took $timeTaken ms")
-    println(s"XXX finished merge pass of $inputFile ($read bytes), took $timeTaken ms")
-    scala.Console.flush()
-    assert(read == fileSize)
-  }
 
   private[spark]
   final class LongArraySorter extends SortDataFormat[Long, Array[Long]] {

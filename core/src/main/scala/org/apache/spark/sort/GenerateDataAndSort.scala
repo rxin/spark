@@ -64,7 +64,7 @@ object GenerateDataAndSort extends Logging {
             assert(bytebuf.hasMemoryAddress)
 
             val start = bytebuf.memoryAddress + bytebuf.readerIndex
-            UnsafeSort.UNSAFE.copyMemory(start, sortBuffer.address + offset, len)
+            IndySort.UNSAFE.copyMemory(start, sortBuffer.address + offset, len)
             offset += len
             bytebuf.release()
 
