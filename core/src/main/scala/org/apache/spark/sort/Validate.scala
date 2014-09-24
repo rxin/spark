@@ -2,9 +2,9 @@ package org.apache.spark.sort
 
 import java.io._
 
-import com.google.common.primitives.UnsignedBytes
-
 import scala.sys.process._
+
+import com.google.common.primitives.UnsignedBytes
 
 import org.apache.spark.{TaskContext, Partition, SparkConf, SparkContext}
 import org.apache.spark.sort.datagen.{Unsigned16, PureJavaCrc32}
@@ -13,38 +13,35 @@ import org.apache.spark.sort.datagen.{Unsigned16, PureJavaCrc32}
 object Validate {
 
   def main(args: Array[String]): Unit = {
-    val folderName = args(0)  // sort-10g-100 or sort-10g-100-out
-    val dirs = args(1).split(",").map(_ + "/" + folderName).toSeq
+    val dir = args(0)  // /mnt/sort-10g-100
     val sc = new SparkContext(
-        new SparkConf().setAppName(s"XOR - " + dirs.mkString(",")))
-    validate(sc, dirs)
+        new SparkConf().setAppName(s"Validate - $dir"))
+    validate(sc, dir)
   }
 
-  def validate(sc: SparkContext, dirs: Seq[String]): Unit = {
+  def validate(sc: SparkContext, dir: String): Unit = {
     val hosts = Utils.readSlaves()
     // First find all the files
-    val output: Array[(Int, String, String)] = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
+    val output = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
-        dirs.iterator.flatMap { dir =>
-          val host = "hostname".!!.trim
+        val host = "hostname".!!.trim
 
-          val baseFolder = new File(dir)
-          val files: Array[File] = baseFolder.listFiles(new FilenameFilter {
-            override def accept(dir: File, filename: String): Boolean = {
-              filename.endsWith(".dat")
-            }
-          })
-
-          if (files != null) {
-            files.iterator.map { file: File =>
-              val outputFile = file.getAbsolutePath
-              val partIndex = "(\\d+)\\.dat".r.findFirstIn(outputFile).get.replace(".dat", "").toInt
-              println((partIndex, host, outputFile))
-              (partIndex, host, outputFile)
-            }
-          } else {
-            Seq.empty[(Int, String, String)]
+        val baseFolder = new File(dir)
+        val files: Array[File] = baseFolder.listFiles(new FilenameFilter {
+          override def accept(dir: File, filename: String): Boolean = {
+            filename.endsWith(".dat")
           }
+        })
+
+        if (files != null) {
+          files.iterator.map { file: File =>
+            val outputFile = file.getAbsolutePath
+            val partIndex = "(\\d+)\\.dat".r.findFirstIn(outputFile).get.replace(".dat", "").toInt
+            println((partIndex, host, outputFile))
+            (partIndex, host, outputFile)
+          }
+        } else {
+          Iterator.empty
         }
       }
     }.collect()

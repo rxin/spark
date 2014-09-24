@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import _root_.io.netty.buffer.ByteBuf
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FSDataOutputStream, LocatedFileStatus, RemoteIterator, Path}
+import org.apache.hadoop.fs.{LocatedFileStatus, RemoteIterator, Path}
 import org.apache.spark._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}

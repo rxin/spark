@@ -1,47 +1,47 @@
-package org.apache.spark.sort.old
+package org.apache.spark.sort
 
 import java.io.{File, FileOutputStream, FilenameFilter, RandomAccessFile}
 
-import org.apache.spark.sort.{NodeLocalRDD, Utils}
-import org.apache.spark.{Partition, SparkConf, SparkContext, TaskContext}
-
 import scala.sys.process._
 
+import org.apache.spark.{Partition, SparkConf, SparkContext, TaskContext}
 
-object SortDataValidator {
+/**
+ * Data validation using valsort program provided by sort benchmark.
+ *
+ * Input data needs to on the local file system of each node.
+ */
+object Valsort {
 
   def main(args: Array[String]): Unit = {
-    val folderName = args(0)  // sort-10g-100 or sort-10g-100-out
-    val dirs = args(1).split(",").map(_ + "/" + folderName).toSeq
-    val sc = new SparkContext(new SparkConf().setAppName(s"valgen - " + dirs.mkString(",")))
-    validate(sc, dirs, folderName)
+    val dir = args(0)  // /mnt/sort-10g-100
+    val sc = new SparkContext(new SparkConf().setAppName(s"valgen - $dir"))
+    validate(sc, dir)
   }
 
-  def validate(sc: SparkContext, dirs: Seq[String], folderName: String): Unit = {
+  def validate(sc: SparkContext, dir: String): Unit = {
     val hosts = Utils.readSlaves()
     // First find all the files
-    val output: Array[(Int, String, String)] = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
+    val output = new NodeLocalRDD[(Int, String, String)](sc, hosts.length, hosts) {
       override def compute(split: Partition, context: TaskContext) = {
-        dirs.iterator.flatMap { dir =>
-          val host = "hostname".!!.trim
+        val host = "hostname".!!.trim
 
-          val baseFolder = new File(dir)
-          val files: Array[File] = baseFolder.listFiles(new FilenameFilter {
-            override def accept(dir: File, filename: String): Boolean = {
-              filename.endsWith(".dat")
-            }
-          })
-
-          if (files != null) {
-            files.iterator.map { file: File =>
-              val outputFile = file.getAbsolutePath
-              val partIndex = "(\\d+)\\.dat".r.findFirstIn(outputFile).get.replace(".dat", "").toInt
-              println((partIndex, host, outputFile))
-              (partIndex, host, outputFile)
-            }
-          } else {
-            Seq.empty[(Int, String, String)]
+        val baseFolder = new File(dir)
+        val files: Array[File] = baseFolder.listFiles(new FilenameFilter {
+          override def accept(dir: File, filename: String): Boolean = {
+            filename.endsWith(".dat")
           }
+        })
+
+        if (files != null) {
+          files.iterator.map { file: File =>
+            val outputFile = file.getAbsolutePath
+            val partIndex = "(\\d+)\\.dat".r.findFirstIn(outputFile).get.replace(".dat", "").toInt
+            println((partIndex, host, outputFile))
+            (partIndex, host, outputFile)
+          }
+        } else {
+          Iterator.empty
         }
       }
     }.collect()
@@ -78,6 +78,7 @@ object SortDataValidator {
       println(s"$part\t$outputFile\t$stdout\t$stderr")
     }
 
+    val folderName = new File(dir).getName
     val checksumFile = s"/root/$folderName.sum"
     println(s"checksum output: $checksumFile")
     if (!new File(s"/root/$folderName-checksums/").exists()) {
