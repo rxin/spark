@@ -14,7 +14,7 @@ object Gensort {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
     val skew = args(2).toBoolean
-    val dir = args(2) + s"/sort-${sizeInGB}g-$numParts" + (if (skew) "-skew" else "")
+    val dir = args(3) + s"/sort-${sizeInGB}g-$numParts" + (if (skew) "-skew" else "")
     val sc = new SparkContext(
       new SparkConf().setAppName(s"Gensort - $dir - " + (if (skew) "skewed" else "non-skewed")))
     genSort(sc, sizeInGB, numParts, dir, skew)
