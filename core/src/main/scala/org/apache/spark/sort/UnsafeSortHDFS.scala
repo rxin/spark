@@ -228,7 +228,7 @@ object UnsafeSortHDFS extends Logging {
       is = fs.open(path, 4 * 1024 * 1024)
       while (read < fileSize) {
         val read0 = is.read()
-        assert(read0 > 0, s"only read $read0 bytes this time")
+        assert(read0 > 0, s"only read $read0 bytes this time; read $read; total $fileSize")
         UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, baseAddress, read0)
         read += read0
       }
