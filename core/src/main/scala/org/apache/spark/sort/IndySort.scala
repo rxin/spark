@@ -101,7 +101,6 @@ object IndySort extends Logging {
       // Sort!!!
     {
       val startTime = System.currentTimeMillis
-      //val sorter = new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, numRecords, ord)
       sortWithKeys(sortBuffer, 0, numRecords)
       val timeTaken = System.currentTimeMillis - startTime
       logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
@@ -309,7 +308,6 @@ object IndySort extends Logging {
         // Sort!!!
         {
           val startTime = System.currentTimeMillis
-          //new Sorter(new LongArraySorter).sort(sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
           sortWithKeys(sortBuffer, 0, recordsPerPartition.toInt)
           val timeTaken = System.currentTimeMillis - startTime
           logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
@@ -320,40 +318,6 @@ object IndySort extends Logging {
         Iterator((recordsPerPartition, sortBuffer.pointers))
       }
     }
-  }
-
-  private[spark]
-  final class LongArraySorter extends SortDataFormat[Long, Array[Long]] {
-    /** Return the sort key for the element at the given index. */
-    override protected def getKey(data: Array[Long], pos: Int): Long = data(pos)
-
-    /** Swap two elements. */
-    override protected def swap(data: Array[Long], pos0: Int, pos1: Int) {
-      val tmp = data(pos0)
-      data(pos0) = data(pos1)
-      data(pos1) = tmp
-    }
-
-    /** Copy a single element from src(srcPos) to dst(dstPos). */
-    override protected def copyElement(src: Array[Long], srcPos: Int,
-                                       dst: Array[Long], dstPos: Int) {
-      dst(dstPos) = src(srcPos)
-    }
-
-    /**
-     * Copy a range of elements starting at src(srcPos) to dst, starting at dstPos.
-     * Overlapping ranges are allowed.
-     */
-    override protected def copyRange(src: Array[Long], srcPos: Int,
-                                     dst: Array[Long], dstPos: Int, length: Int) {
-      System.arraycopy(src, srcPos, dst, dstPos, length)
-    }
-
-    /**
-     * Allocates a Buffer that can hold up to 'length' elements.
-     * All elements of the buffer should be considered invalid until data is explicitly copied in.
-     */
-    override protected def allocate(length: Int): Array[Long] = new Array[Long](length)
   }
 
   // Sort a range of a SortBuffer using only the keys, then update the pointers field to match
