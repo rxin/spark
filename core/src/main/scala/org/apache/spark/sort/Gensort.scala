@@ -1,7 +1,6 @@
 package org.apache.spark.sort
 
 import java.io.File
-import java.util.concurrent.atomic.AtomicInteger
 
 import org.apache.spark.{Partition, SparkConf, SparkContext, TaskContext}
 
@@ -45,8 +44,8 @@ object Gensort {
         }
 
         val outputFile = s"$dir/part$part.dat"
-        val skewFlag = if (skew) "-s" else ""
-        val cmd = s"/root/gensort/64/gensort -c $skewFlag -b$start -t1 $recordsPerPartition $outputFile"
+        val skewFlag = if (skew) " -s" else " "
+        val cmd = s"/root/gensort/64/gensort -c$skewFlag -b$start -t1 $recordsPerPartition $outputFile"
         val (exitCode, stdout, stderr) = Utils.runCommand(cmd)
         Iterator((host, part, outputFile, stdout, stderr))
       }
