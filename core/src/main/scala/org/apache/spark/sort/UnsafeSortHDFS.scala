@@ -332,6 +332,7 @@ object UnsafeSortHDFS extends Logging {
             val read0 = is.read(buf)
             assert(read0 == 10, s"read $read0 bytes instead of 10 bytes, " +
               s"sampleCount $sampleCount, skip $skip")
+            samples(sampleCount) = buf
             sampleCount += 1
           }
 
