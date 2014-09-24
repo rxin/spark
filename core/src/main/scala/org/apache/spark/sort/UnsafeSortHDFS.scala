@@ -212,7 +212,7 @@ object UnsafeSortHDFS extends Logging {
 
   def readFileIntoBuffer(inputFile: String, fileSize: Long, sortBuffer: SortBuffer) {
     logInfo(s"XXX start reading file $inputFile")
-    println(s"XXX start reading file $inputFile")
+    println(s"XXX start reading file $inputFile with size $fileSize")
     val startTime = System.currentTimeMillis()
     assert(fileSize % 100 == 0)
 
@@ -228,7 +228,7 @@ object UnsafeSortHDFS extends Logging {
       is = fs.open(path, 4 * 1024 * 1024)
       while (read < fileSize) {
         val read0 = is.read()
-        assert(read0 > 0)
+        assert(read0 > 0, s"only read $read0 bytes this time")
         UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, baseAddress, read0)
         read += read0
       }
