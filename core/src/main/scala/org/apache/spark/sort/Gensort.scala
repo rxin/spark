@@ -1,13 +1,12 @@
-package org.apache.spark.sort.old
+package org.apache.spark.sort
 
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
-import org.apache.spark.sort.{NodeLocalRDD, NodeLocalRDDPartition, Utils}
 import org.apache.spark.{Partition, SparkConf, SparkContext, TaskContext}
 
 
-object SortDataGeneratorDbGen {
+object Gensort {
 
   private[this] val numTasksOnExecutor = new AtomicInteger
 
@@ -16,7 +15,7 @@ object SortDataGeneratorDbGen {
     val numParts = args(1).toInt
     val dirs = args(2).split(",").map(_ + s"/sort-${sizeInGB}g-$numParts").toSeq
     val sc = new SparkContext(
-      new SparkConf().setAppName(s"SortDataGeneratorDbGen - $sizeInGB GB - $numParts partitions"))
+      new SparkConf().setAppName(s"Gensort - $sizeInGB GB - $numParts partitions"))
     genSort(sc, sizeInGB, numParts, dirs)
   }
 
