@@ -283,10 +283,10 @@ object UnsafeSortHDFS extends Logging {
     while (statuses.hasNext) {
       val status = statuses.next()
       val filename = status.getPath.toString
-      val partName = "part(\\d+).dat".r.findFirstIn(status.getPath.getName).get
       val blocks = status.getBlockLocations
       assert(blocks.size == 1, s"found blocks for $filename: " + blocks.toSeq)
 
+      val partName = "part(\\d+).dat".r.findFirstIn(status.getPath.getName).get
       val part = partName.replace("part", "").replace(".dat", "").toInt
       replicatedHosts(part) = blocks.head.getHosts.toSeq
       i += 1
@@ -319,14 +319,14 @@ object UnsafeSortHDFS extends Logging {
           val conf = new Configuration()
           val fs = org.apache.hadoop.fs.FileSystem.get(conf)
           val path = new Path(inputFile)
-          val is: InputStream = fs.open(path, 4 * 1024 * 1024)
+          val is = fs.open(path, 4 * 1024 * 1024)
 
           val skip = recordsPerPartition / samplePerPartition * 100
 
           val samples = new Array[Array[Byte]](samplePerPartition)
           var sampleCount = 0
           while (sampleCount < samplePerPartition) {
-            is.skip(sampleCount * skip)
+            is.seek(sampleCount * skip)
             // Read the first 10 byte, and save that.
             val buf = new Array[Byte](10)
             val read0 = is.read(buf)
