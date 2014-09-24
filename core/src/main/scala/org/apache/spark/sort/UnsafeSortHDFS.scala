@@ -285,7 +285,7 @@ object UnsafeSortHDFS extends Logging {
       val filename = status.getPath.toString
       val partName = "part(\\d+).dat".r.findFirstIn(status.getPath.getName).get
       val blocks = status.getBlockLocations
-      assert(blocks.size == 1, "found blocks for $filename: " + blocks.toSeq)
+      assert(blocks.size == 1, s"found blocks for $filename: " + blocks.toSeq)
 
       val part = partName.replace("part", "").replace(".dat", "").toInt
       replicatedHosts(part) = blocks.head.getHosts.toSeq
