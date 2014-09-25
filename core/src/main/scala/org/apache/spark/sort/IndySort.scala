@@ -4,6 +4,9 @@ import java.io._
 import java.nio.channels.FileChannel
 import java.util.concurrent.Semaphore
 
+import scala.concurrent.future
+import scala.concurrent.ExecutionContext.Implicits.global
+
 import io.netty.buffer.ByteBuf
 
 import org.apache.hadoop.io.nativeio.NativeIO
@@ -127,6 +130,7 @@ object IndySort extends Logging {
         logInfo(s"XXX Reduce: writing $numRecords records started $outputFile")
         println(s"XXX Reduce: writing $numRecords records started $outputFile")
         val fout = new FileOutputStream(outputFile)
+        val fd = fout.getFD
         val os = new BufferedOutputStream(fout, 4 * 1024 * 1024)
         val buf = new Array[Byte](100)
         val arrOffset = BYTE_ARRAY_BASE_OFFSET
@@ -138,21 +142,22 @@ object IndySort extends Logging {
           i += 1
         }
 
+        os.close()
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
+        println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
+
         {
           val startTime = System.currentTimeMillis()
           NativeIO.POSIX.syncFileRangeIfPossible(
-            fout.getFD,
+            fd,
             0,
-            numRecords * 100,
+            numRecords.toLong * 100,
             NativeIO.POSIX.SYNC_FILE_RANGE_WRITE)
           val timeTaken = System.currentTimeMillis() - startTime
           logInfo(s"fsync $outputFile took $timeTaken ms")
         }
 
-        os.close()
-        val timeTaken = System.currentTimeMillis - startTime
-        logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
-        println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
         i.toLong
       }
       Iterator(count)
@@ -172,8 +177,10 @@ object IndySort extends Logging {
     var is: FileInputStream = null
     var channel: FileChannel = null
     var read = 0L
+    var fd: FileDescriptor = null
     try {
       is = new FileInputStream(inputFile)
+      fd = is.getFD
       channel = is.getChannel()
       while (read < fileSize) {
         // This should read read0 bytes directly into our buffer
@@ -185,15 +192,6 @@ object IndySort extends Logging {
         val read0 = channel.read(sortBuffer.ioBuf)
         read += read0
       }
-
-      // Drop from buffer cache
-      NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
-        inputFile,
-        is.getFD,
-        0,
-        fileSize,
-        NativeIO.POSIX.POSIX_FADV_DONTNEED)
-
     } finally {
       if (channel != null) {
         channel.close()
@@ -202,6 +200,19 @@ object IndySort extends Logging {
         is.close()
       }
     }
+
+    if (fd != null) {
+      future {
+        // Drop from buffer cache
+        NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
+          inputFile,
+          fd,
+          0,
+          fileSize,
+          NativeIO.POSIX.POSIX_FADV_DONTNEED)
+      }
+    }
+
     val timeTaken = System.currentTimeMillis() - startTime
     logInfo(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
     println(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
