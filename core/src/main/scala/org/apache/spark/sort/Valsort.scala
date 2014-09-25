@@ -73,7 +73,7 @@ object Valsort {
         }
 
         // Delete the checksum output
-        new File(outputFile).delete()
+        new File(checksumOutput).delete()
 
         Iterator((split.index, outputFile, stdout, stderr, checksumData))
       }
