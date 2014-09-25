@@ -10,9 +10,11 @@ final class DaytonaPartitioner(rangeBounds: Array[Long]) extends Partitioner {
   private[this] var currentLoKey: Long = 0L
 
   private[this] var keys: Array[Long] = null
+  private[this] var lastPart: Int = 0
 
   def setKeys(keys: Array[Long]) {
     this.keys = keys
+    lastPart = keys.length / 2
     currentPart = 0
     currentHiKey = keys(0)
     currentLoKey = keys(1)
@@ -23,8 +25,8 @@ final class DaytonaPartitioner(rangeBounds: Array[Long]) extends Partitioner {
   override def getPartition(key: Any): Int = ???
 
   def getPartitionSpecialized(key1: Long, key2: Long): Int = {
-    if (currentPart == keys.length - 1) {
-      return currentPart
+    if (currentPart == lastPart) {
+      return lastPart
     } else {
       val c1 = java.lang.Long.compare(key1, currentHiKey)
       if (c1 < 0) {
