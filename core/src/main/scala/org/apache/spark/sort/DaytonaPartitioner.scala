@@ -18,9 +18,10 @@ final class DaytonaPartitioner(rangeBounds: Array[Long]) extends Partitioner {
     currentPart = 0
     currentHiKey = keys(0)
     currentLoKey = keys(1)
+    println("last part index is " + lastPart)
   }
 
-  override def numPartitions: Int = rangeBounds.length
+  override def numPartitions: Int = rangeBounds.length / 2 + 1
 
   override def getPartition(key: Any): Int = ???
 
