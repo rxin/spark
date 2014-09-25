@@ -37,8 +37,10 @@ final class DaytonaPartitioner(rangeBounds: Array[Long]) extends Partitioner {
       }
     }
     currentPart += 1
-    currentHiKey = rangeBounds(currentPart * 2)
-    currentLoKey = rangeBounds(currentPart * 2 + 1)
+    if (currentPart < lastPart) {
+      currentHiKey = rangeBounds(currentPart * 2)
+      currentLoKey = rangeBounds(currentPart * 2 + 1)
+    }
     return currentPart
   }
 }
