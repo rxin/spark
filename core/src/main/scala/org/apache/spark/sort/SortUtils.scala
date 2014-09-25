@@ -115,7 +115,7 @@ object SortUtils {
     var indexWithinChunk = 0
     var addr: Long = sortBuf.chunkBegin(0)
     while (i < numRecords) {
-      assert(addr >= sortBuf.chunkBegin(chunkIndex) && addr < sortBuf.chunkEnds(chunkIndex),
+      assert(addr >= sortBuf.chunkBegin(chunkIndex) && addr <= sortBuf.chunkEnds(chunkIndex),
         s"addr $addr, begin ${sortBuf.chunkBegin(chunkIndex)}, end ${sortBuf.chunkEnds(chunkIndex)}")
       assert(chunkIndex < sortBuf.currentNumChunks,
         s"chunkindex $chunkIndex should < ${sortBuf.currentNumChunks}")
