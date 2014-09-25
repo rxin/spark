@@ -724,6 +724,8 @@ def setup_cluster(conn, master_nodes, slave_nodes, opts, deploy_ssh_key):
 
     print "Running setup on master..."
     setup_spark_cluster(master, opts)
+    print "Restarting ganglia gmond"
+    ssh(master, opts, "pssh -h /root/spark-ec2/slaves -P \"/etc/init.d/gmond restart\"")
     print "Done!"
 
 
@@ -739,7 +741,7 @@ def setup_spark_cluster(master, opts):
     print "Spark standalone cluster started at http://%s:8080" % master
 
     if opts.ganglia:
-        print "Ganglia started at http://%s:5080/ganglia" % master
+        print "Ganglia started at http://%s/ganglia" % master
 
 
 # Wait for a whole cluster (masters, slaves and ZooKeeper) to start up
