@@ -106,6 +106,7 @@ object DaytonaSort extends Logging {
             assert(buf.length < sortBuffer.ioBuf.capacity,
               s"buf length is ${buf.length}} while capacity is ${sortBuffer.ioBuf.capacity}")
             sortBuffer.ioBuf.clear()
+            sortBuffer.ioBuf.limit(buf.length.toInt)
             sortBuffer.setIoBufAddress(sortBuffer.currentChunkBaseAddress + offsetInChunk)
             val read0 = channel.read(sortBuffer.ioBuf)
             assert(read0 == buf.length, s"read $read0 while size is ${buf.length} $buf")
