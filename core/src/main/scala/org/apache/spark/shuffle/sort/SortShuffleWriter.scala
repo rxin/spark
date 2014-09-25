@@ -18,6 +18,7 @@
 package org.apache.spark.shuffle.sort
 
 import org.apache.spark.serializer.Serializer
+import org.apache.spark.sort.SortUtils
 import org.apache.spark.util.MutablePair
 import org.apache.spark.{MapOutputTracker, SparkEnv, Logging, TaskContext}
 import org.apache.spark.executor.ShuffleWriteMetrics
@@ -76,6 +77,8 @@ private[spark] class SortShuffleWriter[K, V, C](
         assert(numRecords * 2 <= pointers.length)
         p.setKeys(pointers)
 
+        val baseAddress = SortUtils.sortBuffers.get().address
+
         while (i < numRecords) {
           val pid = p.getPartitionSpecialized(pointers(i * 2), pointers(i * 2 + 1))
           if (pid != lastPid) {
@@ -92,7 +95,7 @@ private[spark] class SortShuffleWriter[K, V, C](
             lastPid = pid
           }
 
-          pair._1 = pointers(i)
+          pair._1 = baseAddress + (pointers(i * 2 + 1) & 0xFFFFFFFFL) * 100
           writer.write(pair)
           i += 1
         }

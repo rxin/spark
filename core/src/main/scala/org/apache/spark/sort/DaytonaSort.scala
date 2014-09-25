@@ -232,7 +232,6 @@ object DaytonaSort extends Logging {
         override def compute(split: Partition, context: TaskContext) = {
           val part = split.index
           val inputFile = s"$dir/part$part.dat"
-          val fileSize = recordsPerPartition * 100
 
           val conf = new Configuration()
           val fs = org.apache.hadoop.fs.FileSystem.get(conf)
