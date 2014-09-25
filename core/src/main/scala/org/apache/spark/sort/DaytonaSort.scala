@@ -64,7 +64,8 @@ object DaytonaSort extends Logging {
       var numShuffleBlocks = 0
 
       sortBuffer.releaseMapSideBuffer()
-      var chunkOffset = sortBuffer.CHUNK_SIZE
+      var offsetInChunk = 0L
+      sortBuffer.allocateNewChunk()
       var totalBytesRead = 0L
 
       {
@@ -79,12 +80,10 @@ object DaytonaSort extends Logging {
         val a = n._2.asInstanceOf[ManagedBuffer]
         assert(a.size % 100 == 0, s"shuffle block size ${a.size} is wrong")
 
-        if (chunkOffset + a.size > sortBuffer.CHUNK_SIZE) {
-          if (sortBuffer.currentNumChunks > 0) {
-            sortBuffer.markLastChunkUsage(chunkOffset)
-          }
+        if (offsetInChunk + a.size > sortBuffer.CHUNK_SIZE) {
+          sortBuffer.markLastChunkUsage(offsetInChunk)
           sortBuffer.allocateNewChunk()
-          chunkOffset = 0
+          offsetInChunk = 0
         }
 
         a match {
@@ -94,8 +93,8 @@ object DaytonaSort extends Logging {
             assert(len % 100 == 0)
             assert(bytebuf.hasMemoryAddress)
             val start = bytebuf.memoryAddress + bytebuf.readerIndex
-            UNSAFE.copyMemory(start, sortBuffer.currentChunkBaseAddress + chunkOffset, len)
-            chunkOffset += len
+            UNSAFE.copyMemory(start, sortBuffer.currentChunkBaseAddress + offsetInChunk, len)
+            offsetInChunk += len
             totalBytesRead += len
             bytebuf.release()
 
@@ -107,10 +106,10 @@ object DaytonaSort extends Logging {
             assert(buf.length < sortBuffer.ioBuf.capacity,
               s"buf length is ${buf.length}} while capacity is ${sortBuffer.ioBuf.capacity}")
             sortBuffer.ioBuf.clear()
-            sortBuffer.setIoBufAddress(sortBuffer.currentChunkBaseAddress + chunkOffset)
+            sortBuffer.setIoBufAddress(sortBuffer.currentChunkBaseAddress + offsetInChunk)
             val read0 = channel.read(sortBuffer.ioBuf)
             assert(read0 == buf.length)
-            chunkOffset += read0
+            offsetInChunk += read0
             totalBytesRead += read0
             channel.close()
             fs.close()
