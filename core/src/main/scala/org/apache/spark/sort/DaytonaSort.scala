@@ -118,6 +118,7 @@ object DaytonaSort extends Logging {
 
         numShuffleBlocks += 1
       }
+      diskSemaphore.release()
 
       sortBuffer.markLastChunkUsage(offsetInChunk)
 
