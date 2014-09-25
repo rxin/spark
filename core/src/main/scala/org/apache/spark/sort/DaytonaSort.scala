@@ -40,7 +40,6 @@ object DaytonaSort extends Logging {
 
     val sizeInBytes = sizeInGB.toLong * 1000 * 1000 * 1000
     val numRecords = sizeInBytes / 100
-    val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val sc = new SparkContext(new SparkConf().setAppName(
       s"DaytonaSort - $sizeInGB GB - $numParts parts $replica replica - $dir"))
@@ -277,6 +276,12 @@ object DaytonaSort extends Logging {
         val k = sampleKeys((i + 1) * samplePerPartition)
         rangeBounds(i * 2) = Longs.fromBytes(0, k(0), k(1), k(2), k(3), k(4), k(5), k(6))
         rangeBounds(i * 2 + 1) = Longs.fromBytes(0, k(7), k(8), k(9), 0, 0, 0, 0)
+
+        if ( i > 0) {
+          println(s"range $i: ${rangeBounds(i * 2) - rangeBounds(i * 2 - 2)}")
+        } else {
+          println(s"range $i: ${rangeBounds(i * 2)}")
+        }
         i += 1
       }
     }
