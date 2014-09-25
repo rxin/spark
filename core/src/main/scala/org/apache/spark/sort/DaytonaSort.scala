@@ -119,6 +119,8 @@ object DaytonaSort extends Logging {
         numShuffleBlocks += 1
       }
 
+      sortBuffer.markLastChunkUsage(offsetInChunk)
+
       val timeTaken = System.currentTimeMillis() - startTime
       logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($totalBytesRead bytes) $outputFile")
       println(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($totalBytesRead bytes) $outputFile")

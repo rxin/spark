@@ -124,6 +124,8 @@ object SortUtils {
         indexWithinChunk = 0
         addr = sortBuf.chunkBegin(chunkIndex)
       }
+      assert(chunkIndex < sortBuf.currentNumChunks,
+        s"chunkindex $chunkIndex should < ${sortBuf.currentNumChunks}")
       val headBytes: Long = // First 7 bytes
         java.lang.Long.reverseBytes(UNSAFE.getLong(addr)) >>> 8
       val tailBytes: Long = // Last 3 bytes
