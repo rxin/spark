@@ -148,14 +148,12 @@ object IndySort extends Logging {
         println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
 
         {
+          val fout = new FileOutputStream(outputFile)
           val startTime = System.currentTimeMillis()
-          NativeIO.POSIX.syncFileRangeIfPossible(
-            fd,
-            0,
-            numRecords.toLong * 100,
-            NativeIO.POSIX.SYNC_FILE_RANGE_WRITE)
+          fout.getFD.sync()
           val timeTaken = System.currentTimeMillis() - startTime
           logInfo(s"fsync $outputFile took $timeTaken ms")
+          fout.close()
         }
 
         i.toLong
@@ -204,12 +202,14 @@ object IndySort extends Logging {
     if (fd != null) {
       future {
         // Drop from buffer cache
+        val f = new FileInputStream(inputFile)
         NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
           inputFile,
-          fd,
+          f.getFD,
           0,
           fileSize,
           NativeIO.POSIX.POSIX_FADV_DONTNEED)
+        f.close()
       }
     }
 
