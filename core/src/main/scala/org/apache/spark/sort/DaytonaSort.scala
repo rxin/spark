@@ -267,7 +267,7 @@ object DaytonaSort extends Logging {
       java.util.Arrays.sort(sampleKeys, UnsignedBytes.lexicographicalComparator())
 
       var i = 0
-      while (i < rangeBounds.length) {
+      while (i < numParts) {
         val k = sampleKeys(i)
         rangeBounds(i * 2) = Longs.fromBytes(0, k(0), k(1), k(2), k(3), k(4), k(5), k(6))
         rangeBounds(i * 2 + 1) = Longs.fromBytes(0, k(7), k(8), k(9), 0, 0, 0, 0)
