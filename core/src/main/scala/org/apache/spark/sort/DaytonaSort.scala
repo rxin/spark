@@ -1,6 +1,7 @@
 package org.apache.spark.sort
 
 import java.io._
+import java.util.concurrent.Semaphore
 
 import io.netty.buffer.ByteBuf
 
@@ -19,6 +20,12 @@ import org.apache.spark.rdd.{ShuffledRDD, RDD}
  */
 object DaytonaSort extends Logging {
 
+  /**
+   * A semaphore to control concurrency when reading from disks. Right now we allow only eight
+   * concurrent tasks to read. The rest will block.
+   */
+  private[this] val diskSemaphore = new Semaphore(8)
+
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
       println("DaytonaSort [sizeInGB] [numParts] [replica] [input-dir]")
@@ -36,7 +43,7 @@ object DaytonaSort extends Logging {
     val recordsPerPartition = math.ceil(numRecords.toDouble / numParts).toLong
 
     val sc = new SparkContext(new SparkConf().setAppName(
-      s"UnsafeSortHDFS - $sizeInGB GB - $numParts parts $replica replica - $dir"))
+      s"DaytonaSort - $sizeInGB GB - $numParts parts $replica replica - $dir"))
 
     val conf = new org.apache.hadoop.conf.Configuration
     val fs = org.apache.hadoop.fs.FileSystem.get(conf)
@@ -291,7 +298,15 @@ object DaytonaSort extends Logging {
 
         val sortBuffer = sortBuffers.get()
 
+        {
+          logInfo(s"trying to acquire semaphore for $inputFile")
+          val startTime = System.currentTimeMillis
+          diskSemaphore.acquire()
+          logInfo(s"acquired semaphore for $inputFile took " + (System.currentTimeMillis - startTime) + " ms")
+        }
+
         readFileIntoBuffer(inputFile, fileSize, sortBuffer)
+        diskSemaphore.release()
 
         // Sort!!!
         {

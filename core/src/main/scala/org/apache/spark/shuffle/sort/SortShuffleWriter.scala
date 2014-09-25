@@ -82,7 +82,6 @@ private[spark] class SortShuffleWriter[K, V, C](
         while (i < numRecords) {
           val pid = p.getPartitionSpecialized(pointers(i * 2), pointers(i * 2 + 1))
           if (pid != lastPid) {
-            println(s"new pid $pid and last pid $lastPid for key ${pointers(i * 2)}, ${pointers(i * 2 + 1)}")
             // This is a new pid. update the index.
             if (writer != null) {
               writer.commitAndClose()
