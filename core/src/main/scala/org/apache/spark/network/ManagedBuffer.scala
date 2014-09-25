@@ -116,6 +116,8 @@ final class FileSegmentManagedBuffer(val file: File, val offset: Long, val lengt
   // Content of file segments are not in-memory, so no need to reference count.
   override def retain(): this.type = this
   override def release(): this.type = this
+
+  override def toString = s"FileSegmentManagedBuffer($file, $offset, $length)"
 }
 
 
