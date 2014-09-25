@@ -29,10 +29,49 @@ object SortUtils {
     val len: Long = capacity * 100
 
     /** address pointing to a block of memory off heap */
-    val address: Long = {
+    var address: Long = {
       val blockSize = capacity * 100
       val blockAddress = UNSAFE.allocateMemory(blockSize)
       blockAddress
+    }
+
+    def releaseMapSideBuffer() {
+      if (address != 0) {
+        UNSAFE.freeMemory(address)
+        pointers = null
+        address = 0L
+      }
+    }
+
+    /**
+     * Each chunk should be 512MB
+     */
+    val CHUNK_SIZE = 512L * 1000 * 1000
+    val chunkBegin = new Array[Long](32)
+    val chunkEnds = new Array[Long](32)
+    var currentNumChunks = 0
+
+    def currentChunkBaseAddress: Long = chunkBegin(currentNumChunks - 1)
+
+    def allocateNewChunk() {
+      println("allocating a new chunk at " + currentNumChunks)
+      chunkBegin(currentNumChunks) = UNSAFE.allocateMemory(CHUNK_SIZE)
+      currentNumChunks += 1
+    }
+
+    def markLastChunkUsage(len: Long) {
+      assert(currentNumChunks > 0)
+      println(s"mark $currentNumChunks usage at $len")
+      chunkEnds(currentNumChunks - 1) = chunkBegin(currentNumChunks - 1) + len
+    }
+
+    def freeChunks() {
+      var i = 0
+      while (i < currentNumChunks) {
+        UNSAFE.freeMemory(chunkBegin(i))
+        i += 1
+      }
+      currentNumChunks = 0
     }
 
     /**
@@ -48,7 +87,7 @@ object SortUtils {
     var pointers: Array[Long] = new Array[Long](capacity.toInt)
 
     /** an array of 2 * capacity longs that we can use for records holding our keys */
-    val keys: Array[Long] = new Array[Long](2 * capacity.toInt)
+    var keys: Array[Long] = new Array[Long](2 * capacity.toInt)
 
     private[this] val ioBufAddressField = {
       val f = classOf[java.nio.Buffer].getDeclaredField("address")
@@ -66,6 +105,38 @@ object SortUtils {
 
   /** A thread local variable storing a pointer to the buffer allocated off-heap. */
   val sortBuffers = new ThreadLocal[SortBuffer]
+
+  def sortWithKeysUsingChunks(sortBuf: SortBuffer, numRecords: Int) {
+    // Fill in the keys array
+    sortBuf.keys = new Array[Long](numRecords * 2)
+    val keys = sortBuf.keys
+    var i = 0
+    var chunkIndex = 0
+    var indexWithinChunk = 0
+    var addr: Long = sortBuf.chunkBegin(0)
+    while (i < numRecords) {
+      //assert(index >= 0L && index <= 0xFFFFFFFFL)
+      if (addr >= sortBuf.chunkEnds(chunkIndex)) {
+        chunkIndex += 1
+        indexWithinChunk = 0
+        addr = sortBuf.chunkBegin(chunkIndex)
+      }
+      val headBytes: Long = // First 7 bytes
+        java.lang.Long.reverseBytes(UNSAFE.getLong(addr)) >>> 8
+      val tailBytes: Long = // Last 3 bytes
+        java.lang.Long.reverseBytes(UNSAFE.getLong(addr + 7)) >>> (8 * 5)
+      keys(2 * i) = headBytes
+
+      // Use the lower 23 bits for index within a chunk, and bit 23 to bit 31 for chunkIndex
+      keys(2 * i + 1) = (tailBytes << 32) | (chunkIndex.toLong << 23) | indexWithinChunk.toLong
+      addr += 100
+      i += 1
+      indexWithinChunk += 1
+    }
+
+    // Sort it
+    new Sorter(new LongPairArraySorter).sort(keys, 0, numRecords, longPairOrdering)
+  }
 
   // Sort a range of a SortBuffer using only the keys, then update the pointers field to match
   // sorted order. Unlike the other sort methods, this copies the keys into an array of Longs

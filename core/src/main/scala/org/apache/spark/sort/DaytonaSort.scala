@@ -16,8 +16,8 @@ import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyM
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
 
 /**
- * A version of the sort code that uses Unsafe to allocate off-heap blocks.
- */
+* A version of the sort code that uses Unsafe to allocate off-heap blocks.
+*/
 object DaytonaSort extends Logging {
 
   /**
@@ -63,6 +63,10 @@ object DaytonaSort extends Logging {
       var offset = 0L
       var numShuffleBlocks = 0
 
+      sortBuffer.releaseMapSideBuffer()
+      var chunkOffset = 0L
+      var totalBytesRead = 0L
+
       {
         logInfo(s"trying to acquire semaphore for $outputFile")
         val startTime = System.currentTimeMillis
@@ -74,16 +78,25 @@ object DaytonaSort extends Logging {
         val n = iter.next()
         val a = n._2.asInstanceOf[ManagedBuffer]
         assert(a.size % 100 == 0, s"shuffle block size ${a.size} is wrong")
+
+        if (chunkOffset + a.size > sortBuffer.CHUNK_SIZE) {
+          if (sortBuffer.currentNumChunks > 0) {
+            sortBuffer.markLastChunkUsage(chunkOffset)
+          }
+          sortBuffer.allocateNewChunk()
+          chunkOffset = 0
+        }
+
         a match {
           case buf: NettyManagedBuffer =>
             val bytebuf = buf.convertToNetty().asInstanceOf[ByteBuf]
             val len = bytebuf.readableBytes()
             assert(len % 100 == 0)
             assert(bytebuf.hasMemoryAddress)
-
             val start = bytebuf.memoryAddress + bytebuf.readerIndex
-            UNSAFE.copyMemory(start, sortBuffer.address + offset, len)
-            offset += len
+            UNSAFE.copyMemory(start, sortBuffer.currentChunkBaseAddress + chunkOffset, len)
+            chunkOffset += len
+            totalBytesRead += len
             bytebuf.release()
 
           case buf: FileSegmentManagedBuffer =>
@@ -94,11 +107,11 @@ object DaytonaSort extends Logging {
             assert(buf.length < sortBuffer.ioBuf.capacity,
               s"buf length is ${buf.length}} while capacity is ${sortBuffer.ioBuf.capacity}")
             sortBuffer.ioBuf.clear()
-            sortBuffer.ioBuf.limit(buf.length.toInt)
-            sortBuffer.setIoBufAddress(sortBuffer.address + offset)
+            sortBuffer.setIoBufAddress(sortBuffer.currentChunkBaseAddress + chunkOffset)
             val read0 = channel.read(sortBuffer.ioBuf)
             assert(read0 == buf.length)
-            offset += read0
+            chunkOffset += read0
+            totalBytesRead += read0
             channel.close()
             fs.close()
         }
@@ -106,24 +119,23 @@ object DaytonaSort extends Logging {
         numShuffleBlocks += 1
       }
 
-      diskSemaphore.release()
-
       val timeTaken = System.currentTimeMillis() - startTime
-      logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
-      println(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
+      logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($totalBytesRead bytes) $outputFile")
+      println(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($totalBytesRead bytes) $outputFile")
 
-      val pointers = sortBuffer.pointers
-      val numRecords = (offset / 100).toInt
+      val numRecords = (totalBytesRead / 100).toInt
 
       // Sort!!!
       {
         val startTime = System.currentTimeMillis
-        sortWithKeys(sortBuffer, numRecords)
+        sortWithKeysUsingChunks(sortBuffer, numRecords)
         val timeTaken = System.currentTimeMillis - startTime
         logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
         println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
         scala.Console.flush()
       }
+
+      val keys = sortBuffer.keys
 
       val count: Long = {
         val startTime = System.currentTimeMillis
@@ -138,15 +150,25 @@ object DaytonaSort extends Logging {
         val os = fs.create(new Path(tempFile), replica.toShort)
         val buf = new Array[Byte](100)
         val arrOffset = BYTE_ARRAY_BASE_OFFSET
+        val MASK = ((1 << 23) - 1).toLong // mask to get the lowest 23 bits
         var i = 0
         while (i < numRecords) {
-          val addr = pointers(i)
-          UNSAFE.copyMemory(null, addr, buf, arrOffset, 100)
+          val locationInfo = keys(i * 2 + 1) & 0xFFFFFFFFL
+          val chunkIndex = locationInfo >>> 23
+          val indexWithinChunk = locationInfo & MASK
+          UNSAFE.copyMemory(
+            null,
+            sortBuffer.chunkBegin(chunkIndex.toInt) + indexWithinChunk * 100,
+            buf,
+            arrOffset,
+            100)
           os.write(buf)
           i += 1
         }
         os.close()
         fs.rename(new Path(tempFile), new Path(outputFile))
+
+        sortBuffer.freeChunks()
 
         val timeTaken = System.currentTimeMillis - startTime
         logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
@@ -305,8 +327,7 @@ object DaytonaSort extends Logging {
         val fileSize = recordsPerPartition * 100
 
         if (sortBuffers.get == null) {
-          // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
-          val capacity = recordsPerPartition + recordsPerPartition / 10
+          val capacity = recordsPerPartition
           sortBuffers.set(new SortBuffer(capacity))
         }
 
