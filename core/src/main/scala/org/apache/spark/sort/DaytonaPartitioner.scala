@@ -9,10 +9,9 @@ final class DaytonaPartitioner(rangeBounds: Array[Long]) extends Partitioner {
   private[this] var currentHiKey: Long = 0L
   private[this] var currentLoKey: Long = 0L
 
-  private[this] var lastPart: Int = 0
+  private[this] val lastPart: Int = rangeBounds.length / 2
 
   def setKeys(keys: Array[Long]) {
-    lastPart = keys.length / 2
     currentPart = 0
     currentHiKey = keys(0)
     currentLoKey = keys(1)
