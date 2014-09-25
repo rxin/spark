@@ -126,7 +126,8 @@ object IndySort extends Logging {
         }
         logInfo(s"XXX Reduce: writing $numRecords records started $outputFile")
         println(s"XXX Reduce: writing $numRecords records started $outputFile")
-        val os = new BufferedOutputStream(new FileOutputStream(outputFile), 4 * 1024 * 1024)
+        val fout = new FileOutputStream(outputFile)
+        val os = new BufferedOutputStream(fout, 4 * 1024 * 1024)
         val buf = new Array[Byte](100)
         val arrOffset = BYTE_ARRAY_BASE_OFFSET
         var i = 0
@@ -136,6 +137,18 @@ object IndySort extends Logging {
           os.write(buf)
           i += 1
         }
+
+        {
+          val startTime = System.currentTimeMillis()
+          NativeIO.POSIX.syncFileRangeIfPossible(
+            fout.getFD,
+            0,
+            numRecords * 100,
+            NativeIO.POSIX.SYNC_FILE_RANGE_WRITE)
+          val timeTaken = System.currentTimeMillis() - startTime
+          logInfo(s"fsync $outputFile took $timeTaken ms")
+        }
+
         os.close()
         val timeTaken = System.currentTimeMillis - startTime
         logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
