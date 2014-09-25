@@ -9,11 +9,9 @@ final class DaytonaPartitioner(rangeBounds: Array[Long]) extends Partitioner {
   private[this] var currentHiKey: Long = 0L
   private[this] var currentLoKey: Long = 0L
 
-  private[this] var keys: Array[Long] = null
   private[this] var lastPart: Int = 0
 
   def setKeys(keys: Array[Long]) {
-    this.keys = keys
     lastPart = keys.length / 2
     currentPart = 0
     currentHiKey = keys(0)
@@ -40,8 +38,8 @@ final class DaytonaPartitioner(rangeBounds: Array[Long]) extends Partitioner {
       }
     }
     currentPart += 1
-    currentHiKey = keys(currentPart * 2)
-    currentLoKey = keys(currentPart * 2 + 1)
+    currentHiKey = rangeBounds(currentPart * 2)
+    currentLoKey = rangeBounds(currentPart * 2 + 1)
     return currentPart
   }
 }
