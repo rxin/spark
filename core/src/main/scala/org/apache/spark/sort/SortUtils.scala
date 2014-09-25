@@ -112,10 +112,19 @@ object SortUtils {
     */
   }
 
-  final class LongPairArraySorter extends SortDataFormat[(Long, Long), Array[Long]] {
+  final class PairLong(var _1: Long, var _2: Long)
+
+  final class LongPairArraySorter extends SortDataFormat[PairLong, Array[Long]] {
+    override protected def getKey(data: Array[Long], pos: Int) = ???
+
+    override protected def createNewMutableThingy(): PairLong = new PairLong(0L, 0L)
+
     /** Return the sort key for the element at the given index. */
-    override protected def getKey(data: Array[Long], pos: Int): (Long, Long) = {
-      (data(2 * pos), data(2 * pos + 1))
+    override protected def getKey(data: Array[Long], pos: Int, reuse: PairLong): PairLong = {
+      reuse._1 = data(2 * pos)
+      reuse._2 = data(2 * pos + 1)
+      reuse
+      //(data(2 * pos), data(2 * pos + 1))
     }
 
     /** Swap two elements. */
@@ -151,8 +160,8 @@ object SortUtils {
     override protected def allocate(length: Int): Array[Long] = new Array[Long](2 * length)
   }
 
-  final class LongPairOrdering extends Ordering[(Long, Long)] {
-    override def compare(left: (Long, Long), right: (Long, Long)): Int = {
+  final class LongPairOrdering extends Ordering[PairLong] {
+    override def compare(left: PairLong, right: PairLong): Int = {
       val c1 = java.lang.Long.compare(left._1, right._1)
       if (c1 != 0) {
         c1
