@@ -115,7 +115,10 @@ object SortUtils {
     var indexWithinChunk = 0
     var addr: Long = sortBuf.chunkBegin(0)
     while (i < numRecords) {
-      //assert(index >= 0L && index <= 0xFFFFFFFFL)
+      assert(addr >= sortBuf.chunkBegin(chunkIndex) && addr < sortBuf.chunkEnds(chunkIndex),
+        s"addr $addr, begin ${sortBuf.chunkBegin(chunkIndex)}, end ${sortBuf.chunkEnds(chunkIndex)}")
+      assert(chunkIndex < sortBuf.currentNumChunks,
+        s"chunkindex $chunkIndex should < ${sortBuf.currentNumChunks}")
       if (addr >= sortBuf.chunkEnds(chunkIndex)) {
         chunkIndex += 1
         indexWithinChunk = 0
@@ -133,6 +136,9 @@ object SortUtils {
       i += 1
       indexWithinChunk += 1
     }
+
+    println("done building now sort")
+    scala.Console.flush()
 
     // Sort it
     new Sorter(new LongPairArraySorter).sort(keys, 0, numRecords, longPairOrdering)
