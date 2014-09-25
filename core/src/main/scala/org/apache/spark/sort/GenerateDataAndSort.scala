@@ -35,7 +35,7 @@ object GenerateDataAndSort extends Logging {
       new SparkConf().setAppName(s"GenerateDataAndSort - $sizeInGB GB - $numParts partitions"))
     val input = createInputRDDUnsafe(sc, sizeInGB, numParts)
 
-    val partitioner = new UnsafePartitioner(numParts)
+    val partitioner = new IndyPartitioner(numParts)
     val shuffled = new ShuffledRDD(input, partitioner)
       .setSerializer(new UnsafeSerializer(recordsPerPartition))
 

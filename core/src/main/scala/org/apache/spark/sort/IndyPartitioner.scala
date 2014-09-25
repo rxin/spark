@@ -4,8 +4,8 @@ import com.google.common.primitives.Longs
 import org.apache.spark.Partitioner
 
 
-case class UnsafePartitioner(numPartitions: Int) extends Partitioner {
-  import UnsafePartitioner._
+final case class IndyPartitioner(numPartitions: Int) extends Partitioner {
+  import IndyPartitioner._
 
   private[this] val rangePerPart: Long = {
     val range = max - min + 1
@@ -33,14 +33,21 @@ case class UnsafePartitioner(numPartitions: Int) extends Partitioner {
    * reverseBytes: 0x01 0x02 0x03 0x04 0x05 0x06 0x07 0x08
    * >>> 8: 0x00 0x01 0x02 0x03 0x04 0x05 0x06 0x07
    */
-  override def getPartition(key: Any): Int = {
-    val addr: Long = key.asInstanceOf[Long]
+  override def getPartition(key: Any): Int = ???
+
+//  {
+//    val addr: Long = key.asInstanceOf[Long]
+//    val prefix = SortUtils.UNSAFE.getLong(addr)
+//    ((java.lang.Long.reverseBytes(prefix) >>> 8) / rangePerPart).toInt
+//  }
+
+  def getPartitionSpecialized(addr: Long): Int = {
     val prefix = SortUtils.UNSAFE.getLong(addr)
     ((java.lang.Long.reverseBytes(prefix) >>> 8) / rangePerPart).toInt
   }
 }
 
-object UnsafePartitioner {
+object IndyPartitioner {
 
   val min = Longs.fromBytes(0, 0, 0, 0, 0, 0, 0, 0)
   val max = Longs.fromBytes(0, -1, -1, -1, -1, -1, -1, -1)  // 0xff = -1
@@ -65,7 +72,7 @@ object UnsafePartitioner {
 
   private def testArray(numPart: Int, in: Array[Byte]) {
     val aPt = createOffHeapBuf(in)
-    println(s"${in.toSeq} " + new UnsafePartitioner(numPart).getPartition(aPt))
+    println(s"${in.toSeq} " + new IndyPartitioner(numPart).getPartition(aPt))
   }
 
   private def createOffHeapBuf(bytes: Array[Byte]): Long = {

@@ -43,7 +43,7 @@ object IndySort extends Logging {
       s"IndySort - $sizeInGB GB - $numParts parts $replica replica - $dir"))
     val input = createMapPartitions(sc, sizeInGB, numParts, dir, replica)
 
-    val partitioner = new UnsafePartitioner(numParts)
+    val partitioner = new IndyPartitioner(numParts)
     val shuffled = new ShuffledRDD(input, partitioner)
       .setSerializer(new UnsafeSerializer(recordsPerPartition))
 

@@ -4,7 +4,7 @@ import java.io._
 
 import io.netty.buffer.ByteBuf
 
-import com.google.common.primitives.UnsignedBytes
+import com.google.common.primitives.{Longs, UnsignedBytes}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{LocatedFileStatus, RemoteIterator, Path}
@@ -45,11 +45,7 @@ object DaytonaSort extends Logging {
       fs.mkdirs(root)
     }
 
-    val input = createMapPartitions(sc, sizeInGB, numParts, dir, replica, pipeline = false)
-
-    val partitioner = new UnsafePartitioner(numParts)
-    val shuffled = new ShuffledRDD(input, partitioner)
-      .setSerializer(new UnsafeSerializer(recordsPerPartition))
+    val shuffled = createMapPartitions(sc, sizeInGB, numParts, dir, replica, pipeline = false)
 
     val recordsAfterSort: Long = shuffled.mapPartitionsWithContext { (context, iter) =>
       val part = context.partitionId
@@ -226,7 +222,7 @@ object DaytonaSort extends Logging {
     /////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////
     // Sample
-    val rangeBounds = new Array[Array[Byte]](numParts - 1)
+    val rangeBounds = new Array[Long]((numParts - 1) * 2)
 
     {
       val startTime = System.currentTimeMillis()
@@ -265,15 +261,23 @@ object DaytonaSort extends Logging {
       val timeTaken = System.currentTimeMillis() - startTime
       logInfo(s"XXXX sampling ${sampleKeys.size} keys took $timeTaken ms")
 
-      assert(sampleKeys.size == samplePerPartition * numParts,
+      assert(sampleKeys.length == samplePerPartition * numParts,
         s"expect sampledKeys to be ${samplePerPartition * numParts}, but got ${sampleKeys.size}")
 
       java.util.Arrays.sort(sampleKeys, UnsignedBytes.lexicographicalComparator())
+
+      var i = 0
+      while (i < rangeBounds.length) {
+        val k = sampleKeys(i)
+        rangeBounds(i * 2) = Longs.fromBytes(0, k(0), k(1), k(2), k(3), k(4), k(5), k(6))
+        rangeBounds(i * 2 + 1) = Longs.fromBytes(0, k(7), k(8), k(9), 0, 0, 0, 0)
+        i += 1
+      }
     }
 
     /////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////
-    new NodeLocalReplicaRDD[(Long, Array[Long])](sc, numParts, replicatedHosts) {
+    val inputRdd = new NodeLocalReplicaRDD[(Long, Array[Long])](sc, numParts, replicatedHosts) {
       override def compute(split: Partition, context: TaskContext) = {
         val part = split.index
 
@@ -300,8 +304,12 @@ object DaytonaSort extends Logging {
           scala.Console.flush()
         }
 
-        Iterator((recordsPerPartition, sortBuffer.pointers))
+        Iterator((recordsPerPartition, sortBuffer.keys))
       }
     }
+
+    val partitioner = new DaytonaPartitioner(rangeBounds)
+    new ShuffledRDD(inputRdd, partitioner)
+      .setSerializer(new UnsafeSerializer(recordsPerPartition))
   }
 }

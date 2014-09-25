@@ -18,13 +18,12 @@
 package org.apache.spark.shuffle.sort
 
 import org.apache.spark.serializer.Serializer
-import org.apache.spark.sort.UnsafeSerializer
 import org.apache.spark.util.MutablePair
 import org.apache.spark.{MapOutputTracker, SparkEnv, Logging, TaskContext}
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.scheduler.{LargeMapStatus, MapStatus}
 import org.apache.spark.shuffle.{IndexShuffleBlockManager, ShuffleWriter, BaseShuffleHandle}
-import org.apache.spark.storage.{DiskBlockObjectWriter, BlockObjectWriter, ShuffleBlockId}
+import org.apache.spark.storage.BlockObjectWriter
 import org.apache.spark.util.collection.ExternalSorter
 
 private[spark] class SortShuffleWriter[K, V, C](
@@ -56,7 +55,6 @@ private[spark] class SortShuffleWriter[K, V, C](
    */
   override def write(records: Iterator[_ <: Product2[K, V]]): Unit = {
     val (numRecords, pointers) = records.next().asInstanceOf[(Long, Array[Long])]
-    assert(numRecords <= pointers.length)
 
     val outputFile = shuffleBlockManager.getDataFile(dep.shuffleId, mapId)
     val blockId = shuffleBlockManager.consolidateId(dep.shuffleId, mapId)
@@ -72,26 +70,60 @@ private[spark] class SortShuffleWriter[K, V, C](
     var lastPid = -1
     var writer: BlockObjectWriter = null
     val pair = new MutablePair[Long, Long]
-    while (i < numRecords) {
-      val pid = dep.partitioner.getPartition(pointers(i))
 
-      if (pid != lastPid) {
-        // This is a new pid. update the index.
-        if (writer != null) {
-          writer.commitAndClose()
-          partitionLengths(lastPid) = writer.fileSegment().length
-          assert(partitionLengths(lastPid) % 100 == 0,
-            s"invalid segment length ${writer.fileSegment()}")
+    dep.partitioner match {
+      case p: org.apache.spark.sort.DaytonaPartitioner =>
+        assert(numRecords * 2 <= pointers.length)
+        p.setKeys(pointers)
+
+        while (i < numRecords) {
+          val pid = p.getPartitionSpecialized(pointers(i * 2), pointers(i * 2 + 1))
+          if (pid != lastPid) {
+            // This is a new pid. update the index.
+            if (writer != null) {
+              writer.commitAndClose()
+              partitionLengths(lastPid) = writer.fileSegment().length
+              assert(partitionLengths(lastPid) % 100 == 0,
+                s"invalid segment length ${writer.fileSegment()}")
+            }
+
+            writer = blockManager.getDiskWriter(
+              blockId, outputFile, ser, 128 * 1024, context.taskMetrics.shuffleWriteMetrics.get)
+            lastPid = pid
+          }
+
+          pair._1 = pointers(i)
+          writer.write(pair)
+          i += 1
         }
 
-        writer = blockManager.getDiskWriter(
-          blockId, outputFile, ser, 128 * 1024, context.taskMetrics.shuffleWriteMetrics.get)
-        lastPid = pid
-      }
+      case p: org.apache.spark.sort.IndyPartitioner =>
+        assert(numRecords <= pointers.length)
 
-      pair._1 = pointers(i)
-      writer.write(pair)
-      i += 1
+        while (i < numRecords) {
+          val pid = p.getPartitionSpecialized(pointers(i))
+
+          if (pid != lastPid) {
+            // This is a new pid. update the index.
+            if (writer != null) {
+              writer.commitAndClose()
+              partitionLengths(lastPid) = writer.fileSegment().length
+              assert(partitionLengths(lastPid) % 100 == 0,
+                s"invalid segment length ${writer.fileSegment()}")
+            }
+
+            writer = blockManager.getDiskWriter(
+              blockId, outputFile, ser, 128 * 1024, context.taskMetrics.shuffleWriteMetrics.get)
+            lastPid = pid
+          }
+
+          pair._1 = pointers(i)
+          writer.write(pair)
+          i += 1
+        }
+
+      case _ =>
+        throw new RuntimeException("Unknown partitioner type " + dep.partitioner)
     }
 
     // Handle the last partition

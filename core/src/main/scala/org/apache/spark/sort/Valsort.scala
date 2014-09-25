@@ -66,9 +66,14 @@ object Valsort {
         val checksumData: Array[Byte] = {
           val len = new File(checksumOutput).length()
           val buf = new Array[Byte](len.toInt)
-          new RandomAccessFile(checksumOutput, "r").read(buf)
+          val fp =new RandomAccessFile(checksumOutput, "r")
+          fp.read(buf)
+          fp.close()
           buf
         }
+
+        // Delete the checksum output
+        new File(outputFile).delete()
 
         Iterator((split.index, outputFile, stdout, stderr, checksumData))
       }
