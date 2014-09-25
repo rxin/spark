@@ -64,7 +64,7 @@ object DaytonaSort extends Logging {
       var numShuffleBlocks = 0
 
       sortBuffer.releaseMapSideBuffer()
-      var chunkOffset = 0L
+      var chunkOffset = sortBuffer.CHUNK_SIZE
       var totalBytesRead = 0L
 
       {
