@@ -100,7 +100,7 @@ private[spark] class SortShuffleWriter[K, V, C](
           if (pid != lastPid) {
             // This is a new pid. update the index.
             partitionLengths(lastPid) = offsetWithinPartition
-            writeMetrics.shuffleBytesWritten += totalWritten
+            writeMetrics.shuffleBytesWritten += offsetWithinPartition
             offsetWithinPartition = 0L
             lastPid = pid
           }
@@ -120,7 +120,7 @@ private[spark] class SortShuffleWriter[K, V, C](
           if (pid != lastPid) {
             // This is a new pid. update the index.
             partitionLengths(lastPid) = offsetWithinPartition
-            writeMetrics.shuffleBytesWritten += totalWritten
+            writeMetrics.shuffleBytesWritten += offsetWithinPartition
             offsetWithinPartition = 0L
             lastPid = pid
           }
@@ -142,7 +142,7 @@ private[spark] class SortShuffleWriter[K, V, C](
     out.close()
 
     //SortShuffleWriter.sem.release()
-    writeMetrics.shuffleBytesWritten += totalWritten
+    writeMetrics.shuffleBytesWritten += offsetWithinPartition
     partitionLengths(lastPid) = offsetWithinPartition
 
     if (lastPid < dep.partitioner.numPartitions - 1) {
