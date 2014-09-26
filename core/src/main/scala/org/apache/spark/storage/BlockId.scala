@@ -63,6 +63,7 @@ case class ShuffleBlockId(shuffleId: Int, mapId: Int, reduceId: Int) extends Blo
 
   override def encodedLength = 4
   override def encode(buf: io.netty.buffer.ByteBuf): Unit = {
+    buf.writeByte(1)
     buf.writeByte(shuffleId)
     buf.writeByte(mapId)
     buf.writeByte(reduceId)
