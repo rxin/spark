@@ -13,8 +13,8 @@ final class DaytonaPartitioner(rangeBounds: Array[Long]) extends Partitioner {
 
   def setKeys(keys: Array[Long]) {
     currentPart = 0
-    currentHiKey = keys(0)
-    currentLoKey = keys(1)
+    currentHiKey = rangeBounds(0)
+    currentLoKey = rangeBounds(1)
   }
 
   override def numPartitions: Int = rangeBounds.length / 2 + 1
@@ -22,24 +22,27 @@ final class DaytonaPartitioner(rangeBounds: Array[Long]) extends Partitioner {
   override def getPartition(key: Any): Int = ???
 
   def getPartitionSpecialized(key1: Long, key2: Long): Int = {
-    if (currentPart == lastPart) {
-      return lastPart
-    } else {
-      val c1 = java.lang.Long.compare(key1, currentHiKey)
-      if (c1 < 0) {
-        return currentPart
-      } else if (c1 == 0) {
-        val c2 = java.lang.Long.compare(key1, currentHiKey)
-        if (c2 <= 0) {
+    while (currentPart <= lastPart) {
+      if (currentPart == lastPart) {
+        return lastPart
+      } else {
+        val c1 = java.lang.Long.compare(key1, currentHiKey)
+        if (c1 < 0) {
           return currentPart
+        } else if (c1 == 0) {
+          val c2 = java.lang.Long.compare(key2, currentLoKey)
+          if (c2 <= 0) {
+            return currentPart
+          }
         }
       }
+      currentPart += 1
+      if (currentPart < lastPart) {
+        currentHiKey = rangeBounds(currentPart * 2)
+        currentLoKey = rangeBounds(currentPart * 2 + 1)
+      }
     }
-    currentPart += 1
-    if (currentPart < lastPart) {
-      currentHiKey = rangeBounds(currentPart * 2)
-      currentLoKey = rangeBounds(currentPart * 2 + 1)
-    }
+    assert(false, "something is wrong!!!!!!!!!!!!")
     return currentPart
   }
 }

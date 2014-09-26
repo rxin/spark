@@ -114,8 +114,8 @@ object Validate {
     var lastMax = new Array[Byte](10)
     checksumOut.foreach { case (part, count, partSum, min, max) =>
       println(s"part $part")
-      println(s"min " + min.toSeq)
-      println(s"max " + max.toSeq)
+      println(s"min " + min.toSeq.map(x => if (x < 0) 256 + x else x))
+      println(s"max " + max.toSeq.map(x => if (x < 0) 256 + x else x))
 
       assert(cmp.compare(min, max) < 0, "min >= max")
       assert(cmp.compare(lastMax, min) < 0, "current partition min < last partition max")

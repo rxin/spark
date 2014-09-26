@@ -54,14 +54,12 @@ object SortUtils {
     def currentChunkBaseAddress: Long = chunkBegin(currentNumChunks - 1)
 
     def allocateNewChunk() {
-      println("allocating a new chunk at " + currentNumChunks)
       chunkBegin(currentNumChunks) = UNSAFE.allocateMemory(CHUNK_SIZE)
       currentNumChunks += 1
     }
 
     def markLastChunkUsage(len: Long) {
       assert(currentNumChunks > 0)
-      println(s"mark $currentNumChunks usage at $len")
       chunkEnds(currentNumChunks - 1) = chunkBegin(currentNumChunks - 1) + len
     }
 
@@ -139,9 +137,6 @@ object SortUtils {
       indexWithinChunk += 1
     }
 
-    println("done building now sort")
-    scala.Console.flush()
-
     // Sort it
     new Sorter(new LongPairArraySorter).sort(keys, 0, numRecords, longPairOrdering)
   }
@@ -181,14 +176,15 @@ object SortUtils {
       i += 1
     }
 
-    /*
-    // Validate that the data is sorted
-    i = start
-    while (i < end - 1) {
-      assert(ord.compare(pointers(i), pointers(i + 1)) <= 0)
-      i += 1
-    }
-    */
+//    val ord = new LongPairOrdering
+//    // Validate that the data is sorted
+//    i = 0
+//    while (i < numRecords - 1) {
+//      val p1 = new PairLong(keys(i * 2), keys(i * 2 + 1))
+//      val p2 = new PairLong(keys((i+1) * 2), keys((i+1) * 2 + 1))
+//      assert(ord.compare(p1, p2) <= 0)
+//      i += 1
+//    }
   }
 
   final class PairLong(var _1: Long, var _2: Long)

@@ -311,11 +311,12 @@ object DaytonaSort extends Logging {
         rangeBounds(i * 2) = Longs.fromBytes(0, k(0), k(1), k(2), k(3), k(4), k(5), k(6))
         rangeBounds(i * 2 + 1) = Longs.fromBytes(0, k(7), k(8), k(9), 0, 0, 0, 0)
 
-        if ( i > 0) {
-          println(s"range $i: ${rangeBounds(i * 2) - rangeBounds(i * 2 - 2)}")
-        } else {
-          println(s"range $i: ${rangeBounds(i * 2)}")
-        }
+        println(s"range bound $i : ${k.toSeq.map(x => if (x<0) 256 + x else x)}")
+//        if ( i > 0) {
+//          println(s"range $i: ${rangeBounds(i * 2) - rangeBounds(i * 2 - 2)}")
+//        } else {
+//          println(s"range $i: ${rangeBounds(i * 2)}")
+//        }
         i += 1
       }
     }
