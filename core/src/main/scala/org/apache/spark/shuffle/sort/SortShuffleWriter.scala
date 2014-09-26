@@ -17,6 +17,8 @@
 
 package org.apache.spark.shuffle.sort
 
+import java.io.{FileOutputStream, BufferedOutputStream}
+
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.sort.SortUtils
 import org.apache.spark.util.MutablePair
@@ -67,36 +69,38 @@ private[spark] class SortShuffleWriter[K, V, C](
 
     val startTime = System.currentTimeMillis()
 
+    val UNSAFE = SortUtils.UNSAFE
+    val BYTE_ARRAY_BASE_OFFSET = SortUtils.BYTE_ARRAY_BASE_OFFSET
     var i = 0
-    var lastPid = -1
-    var writer: BlockObjectWriter = null
-    val pair = new MutablePair[Long, Long]
+    var lastPid = 0
+    var offsetWithinPartition = 0L
+    var totalWritten = 0L
+    //var writer: BlockObjectWriter = null
+    //val pair = new MutablePair[Long, Long]
+
+    val baseAddress = SortUtils.sortBuffers.get().address
+    val out = new BufferedOutputStream(new FileOutputStream(outputFile))
+    val buf = new Array[Byte](100)
 
     dep.partitioner match {
       case p: org.apache.spark.sort.DaytonaPartitioner =>
         assert(numRecords * 2 <= pointers.length)
         p.setKeys(pointers)
 
-        val baseAddress = SortUtils.sortBuffers.get().address
-
         while (i < numRecords) {
           val pid = p.getPartitionSpecialized(pointers(i * 2), pointers(i * 2 + 1))
           if (pid != lastPid) {
             // This is a new pid. update the index.
-            if (writer != null) {
-              writer.commitAndClose()
-              partitionLengths(lastPid) = writer.fileSegment().length
-              assert(partitionLengths(lastPid) % 100 == 0,
-                s"invalid segment length ${writer.fileSegment()}")
-            }
-
-            writer = blockManager.getDiskWriter(
-              blockId, outputFile, ser, 128 * 1024, context.taskMetrics.shuffleWriteMetrics.get)
+            partitionLengths(lastPid) = offsetWithinPartition
+            writeMetrics.shuffleBytesWritten += totalWritten
+            offsetWithinPartition = 0L
             lastPid = pid
           }
-
-          pair._1 = baseAddress + (pointers(i * 2 + 1) & 0xFFFFFFFFL) * 100
-          writer.write(pair)
+          val addr = baseAddress + (pointers(i * 2 + 1) & 0xFFFFFFFFL) * 100
+          UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
+          out.write(buf)
+          offsetWithinPartition += 100
+          totalWritten += 100
           i += 1
         }
 
@@ -105,23 +109,19 @@ private[spark] class SortShuffleWriter[K, V, C](
 
         while (i < numRecords) {
           val pid = p.getPartitionSpecialized(pointers(i))
-
           if (pid != lastPid) {
             // This is a new pid. update the index.
-            if (writer != null) {
-              writer.commitAndClose()
-              partitionLengths(lastPid) = writer.fileSegment().length
-              assert(partitionLengths(lastPid) % 100 == 0,
-                s"invalid segment length ${writer.fileSegment()}")
-            }
-
-            writer = blockManager.getDiskWriter(
-              blockId, outputFile, ser, 128 * 1024, context.taskMetrics.shuffleWriteMetrics.get)
+            partitionLengths(lastPid) = offsetWithinPartition
+            writeMetrics.shuffleBytesWritten += totalWritten
+            offsetWithinPartition = 0L
             lastPid = pid
           }
 
-          pair._1 = pointers(i)
-          writer.write(pair)
+          val addr = pointers(i)
+          UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
+          out.write(buf)
+          offsetWithinPartition += 100
+          totalWritten += 100
           i += 1
         }
 
@@ -130,10 +130,18 @@ private[spark] class SortShuffleWriter[K, V, C](
     }
 
     // Handle the last partition
-    writer.commitAndClose()
-    partitionLengths(lastPid) = writer.fileSegment().length
-    assert(partitionLengths(lastPid) % 100 == 0,
-      s"invalid segment length ${writer.fileSegment()}")
+    out.flush()
+    out.close()
+    writeMetrics.shuffleBytesWritten += totalWritten
+    partitionLengths(lastPid) = offsetWithinPartition
+
+    if (lastPid < dep.partitioner.numPartitions - 1) {
+      var i = lastPid
+      while (i < dep.partitioner.numPartitions - 1) {
+        partitionLengths(i) = 0
+        i += 1
+      }
+    }
 
     shuffleBlockManager.writeIndexFile(dep.shuffleId, mapId, partitionLengths)
 
