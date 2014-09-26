@@ -147,15 +147,6 @@ object IndySort extends Logging {
         logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
         println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
 
-        {
-          val fout = new FileOutputStream(outputFile)
-          val startTime = System.currentTimeMillis()
-          fout.getFD.sync()
-          val timeTaken = System.currentTimeMillis() - startTime
-          logInfo(s"fsync $outputFile took $timeTaken ms")
-          fout.close()
-        }
-
         i.toLong
       }
       Iterator(count)
