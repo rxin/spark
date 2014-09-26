@@ -119,23 +119,25 @@ private[spark] class Executor(
       println("got peers " + peers)
       val blocks = Seq.fill[BlockId](200)(BroadcastBlockId(100))
       peers.foreach { peer =>
-        env.blockTransferService.fetchBlocks(peer.host, peer.port, blocks,
-          new BlockFetchingListener {
-            /**
-             * Called once per successfully fetched block.
-             */
-            override def onBlockFetchSuccess(blockId: BlockId, data: ManagedBuffer): Unit = {
-              logInfo("got block " + blockId)
-              data.release()
-            }
+        if (!peer.executorId.contains("driver")) {
+          env.blockTransferService.fetchBlocks(peer.host, peer.port, blocks,
+            new BlockFetchingListener {
+              /**
+               * Called once per successfully fetched block.
+               */
+              override def onBlockFetchSuccess(blockId: BlockId, data: ManagedBuffer): Unit = {
+                logInfo("got block " + blockId)
+                data.release()
+              }
 
-            /**
-             * Called at least once per block upon failures.
-             */
-            override def onBlockFetchFailure(blockId: BlockId, exception: Throwable): Unit = {
-              // Do nothing ...
-            }
-          })
+              /**
+               * Called at least once per block upon failures.
+               */
+              override def onBlockFetchFailure(blockId: BlockId, exception: Throwable): Unit = {
+                // Do nothing ...
+              }
+            })
+        }
       }
     }
   }, 3 * 60 * 1000)
