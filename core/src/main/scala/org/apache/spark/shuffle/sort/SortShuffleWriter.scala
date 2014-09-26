@@ -18,6 +18,7 @@
 package org.apache.spark.shuffle.sort
 
 import java.io.{FileOutputStream, BufferedOutputStream}
+import java.util.concurrent.Semaphore
 
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.sort.SortUtils
@@ -28,6 +29,12 @@ import org.apache.spark.scheduler.{LargeMapStatus, MapStatus}
 import org.apache.spark.shuffle.{IndexShuffleBlockManager, ShuffleWriter, BaseShuffleHandle}
 import org.apache.spark.storage.BlockObjectWriter
 import org.apache.spark.util.collection.ExternalSorter
+
+
+object SortShuffleWriter {
+  val semaphore = new Semaphore(8)
+}
+
 
 private[spark] class SortShuffleWriter[K, V, C](
     shuffleBlockManager: IndexShuffleBlockManager,
@@ -66,6 +73,8 @@ private[spark] class SortShuffleWriter[K, V, C](
     val ser = Serializer.getSerializer(dep.serializer)
     // Track location of each range in the output file
     val partitionLengths = new Array[Long](dep.partitioner.numPartitions)
+
+    SortShuffleWriter.semaphore.acquire()
 
     val startTime = System.currentTimeMillis()
 
@@ -142,6 +151,8 @@ private[spark] class SortShuffleWriter[K, V, C](
         i += 1
       }
     }
+
+    SortShuffleWriter.semaphore.release()
 
     shuffleBlockManager.writeIndexFile(dep.shuffleId, mapId, partitionLengths)
 
