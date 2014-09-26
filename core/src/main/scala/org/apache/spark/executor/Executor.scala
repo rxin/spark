@@ -109,7 +109,7 @@ private[spark] class Executor(
   startDriverHeartbeater()
 
   val buf = ByteBuffer.allocate(1024 * 1024)
-  env.blockManager.putBytes(BroadcastBlockId(100), buf, StorageLevel.MEMORY_ONLY, true)
+  env.blockManager.putBytes(BroadcastBlockId(100), buf, StorageLevel.MEMORY_ONLY_SER, true)
 
   private val timer = new java.util.Timer
   timer.schedule(new java.util.TimerTask {
@@ -125,6 +125,7 @@ private[spark] class Executor(
              * Called once per successfully fetched block.
              */
             override def onBlockFetchSuccess(blockId: BlockId, data: ManagedBuffer): Unit = {
+              logInfo("got block " + blockId)
               data.release()
             }
 
