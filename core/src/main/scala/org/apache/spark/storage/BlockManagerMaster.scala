@@ -86,10 +86,10 @@ class BlockManagerMaster(
   /** Get ids of other nodes in the cluster from the driver */
   def getPeers(blockManagerId: BlockManagerId, numPeers: Int): Seq[BlockManagerId] = {
     val result = askDriverWithReply[Seq[BlockManagerId]](GetPeers(blockManagerId, numPeers))
-    if (result.length != numPeers) {
-      throw new SparkException(
-        "Error getting peers, only got " + result.size + " instead of " + numPeers)
-    }
+//    if (result.length != numPeers) {
+//      throw new SparkException(
+//        "Error getting peers, only got " + result.size + " instead of " + numPeers)
+//    }
     result
   }
 

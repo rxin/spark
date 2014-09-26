@@ -22,6 +22,8 @@ import java.lang.management.ManagementFactory
 import java.nio.ByteBuffer
 import java.util.concurrent._
 
+import org.apache.spark.network.{ManagedBuffer, BlockFetchingListener}
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
@@ -29,7 +31,7 @@ import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.scheduler._
 import org.apache.spark.shuffle.FetchFailedException
-import org.apache.spark.storage.{StorageLevel, TaskResultBlockId}
+import org.apache.spark.storage.{BroadcastBlockId, BlockId, StorageLevel, TaskResultBlockId}
 import org.apache.spark.util.{AkkaUtils, Utils}
 
 /**
@@ -105,6 +107,37 @@ private[spark] class Executor(
   private val runningTasks = new ConcurrentHashMap[Long, TaskRunner]
 
   startDriverHeartbeater()
+
+  val buf = ByteBuffer.allocate(1024 * 1024)
+  env.blockManager.putBytes(BroadcastBlockId(100), buf, StorageLevel.MEMORY_ONLY, true)
+
+  private val timer = new java.util.Timer
+  timer.schedule(new java.util.TimerTask {
+    override def run(): Unit = {
+      val bm = env.blockManager
+      val peers = env.blockManager.master.getPeers(bm.blockManagerId, 0)
+      println("got peers " + peers)
+      val blocks = Seq.fill[BlockId](100)(BroadcastBlockId(100))
+      peers.foreach { peer =>
+        env.blockTransferService.fetchBlocks(peer.host, peer.port, blocks,
+          new BlockFetchingListener {
+            /**
+             * Called once per successfully fetched block.
+             */
+            override def onBlockFetchSuccess(blockId: BlockId, data: ManagedBuffer): Unit = {
+              data.release()
+            }
+
+            /**
+             * Called at least once per block upon failures.
+             */
+            override def onBlockFetchFailure(blockId: BlockId, exception: Throwable): Unit = {
+              // Do nothing ...
+            }
+          })
+      }
+    }
+  }, 1 * 60 * 1000)
 
   def launchTask(
       context: ExecutorBackend, taskId: Long, taskName: String, serializedTask: ByteBuffer) {

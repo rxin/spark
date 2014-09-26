@@ -404,15 +404,16 @@ class BlockManagerMasterActor(val isLocal: Boolean, conf: SparkConf, listenerBus
   }
 
   private def getPeers(blockManagerId: BlockManagerId, size: Int): Seq[BlockManagerId] = {
-    val peers: Array[BlockManagerId] = blockManagerInfo.keySet.toArray
-
-    val selfIndex = peers.indexOf(blockManagerId)
-    if (selfIndex == -1) {
-      throw new SparkException("Self index for " + blockManagerId + " not found")
-    }
-
-    // Note that this logic will select the same node multiple times if there aren't enough peers
-    Array.tabulate[BlockManagerId](size) { i => peers((selfIndex + i + 1) % peers.length) }.toSeq
+//    val peers: Array[BlockManagerId] = blockManagerInfo.keySet.toArray
+//
+//    val selfIndex = peers.indexOf(blockManagerId)
+//    if (selfIndex == -1) {
+//      throw new SparkException("Self index for " + blockManagerId + " not found")
+//    }
+//
+//    // Note that this logic will select the same node multiple times if there aren't enough peers
+//    Array.tabulate[BlockManagerId](size) { i => peers((selfIndex + i + 1) % peers.length) }.toSeq
+    blockManagerInfo.keySet.toSeq
   }
 }
 
