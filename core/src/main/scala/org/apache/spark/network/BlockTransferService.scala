@@ -22,7 +22,7 @@ import java.io.Closeable
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.storage.{BlockId, StorageLevel}
 
 
 private[spark]
@@ -63,7 +63,7 @@ abstract class BlockTransferService extends Closeable {
   def fetchBlocks(
       hostName: String,
       port: Int,
-      blockIds: Seq[String],
+      blockIds: Seq[BlockId],
       listener: BlockFetchingListener): Unit
 
   /**
@@ -72,7 +72,7 @@ abstract class BlockTransferService extends Closeable {
   def uploadBlock(
       hostname: String,
       port: Int,
-      blockId: String,
+      blockId: BlockId,
       blockData: ManagedBuffer,
       level: StorageLevel): Future[Unit]
 
@@ -81,18 +81,18 @@ abstract class BlockTransferService extends Closeable {
    *
    * It is also only available after [[init]] is invoked.
    */
-  def fetchBlockSync(hostName: String, port: Int, blockId: String): ManagedBuffer = {
+  def fetchBlockSync(hostName: String, port: Int, blockId: BlockId): ManagedBuffer = {
     // A monitor for the thread to wait on.
     val lock = new Object
     @volatile var result: Either[ManagedBuffer, Throwable] = null
     fetchBlocks(hostName, port, Seq(blockId), new BlockFetchingListener {
-      override def onBlockFetchFailure(blockId: String, exception: Throwable): Unit = {
+      override def onBlockFetchFailure(blockId: BlockId, exception: Throwable): Unit = {
         lock.synchronized {
           result = Right(exception)
           lock.notify()
         }
       }
-      override def onBlockFetchSuccess(blockId: String, data: ManagedBuffer): Unit = {
+      override def onBlockFetchSuccess(blockId: BlockId, data: ManagedBuffer): Unit = {
         lock.synchronized {
           result = Left(data)
           lock.notify()
@@ -126,7 +126,7 @@ abstract class BlockTransferService extends Closeable {
   def uploadBlockSync(
       hostname: String,
       port: Int,
-      blockId: String,
+      blockId: BlockId,
       blockData: ManagedBuffer,
       level: StorageLevel): Unit = {
     Await.result(uploadBlock(hostname, port, blockId, blockData, level), Duration.Inf)

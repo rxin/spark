@@ -21,7 +21,7 @@ import scala.concurrent.Future
 
 import org.apache.spark.SparkConf
 import org.apache.spark.network._
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.storage.{BlockId, StorageLevel}
 
 
 /**
@@ -54,7 +54,7 @@ final class NettyBlockTransferService(conf: SparkConf) extends BlockTransferServ
   override def fetchBlocks(
       hostName: String,
       port: Int,
-      blockIds: Seq[String],
+      blockIds: Seq[BlockId],
       listener: BlockFetchingListener): Unit = {
     clientFactory.createClient(hostName, port).fetchBlocks(blockIds, listener)
   }
@@ -62,7 +62,7 @@ final class NettyBlockTransferService(conf: SparkConf) extends BlockTransferServ
   override def uploadBlock(
       hostname: String,
       port: Int,
-      blockId: String,
+      blockId: BlockId,
       blockData: ManagedBuffer, level: StorageLevel): Future[Unit] = {
     // TODO(rxin): Implement uploadBlock.
     ???

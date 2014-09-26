@@ -26,6 +26,7 @@ import io.netty.handler.codec._
 
 import org.apache.spark.Logging
 import org.apache.spark.network.{NettyManagedBuffer, ManagedBuffer}
+import org.apache.spark.storage.{BroadcastBlockId, ShuffleBlockId, BlockId}
 
 
 /** Messages from the client to the server. */
@@ -39,7 +40,7 @@ sealed trait ClientRequest {
  * correspond to multiple [[ServerResponse]]s.
  */
 private[netty]
-final case class BlockFetchRequest(blocks: Seq[String]) extends ClientRequest {
+final case class BlockFetchRequest(blocks: Seq[BlockId]) extends ClientRequest {
   override def id = 0
 }
 
@@ -47,8 +48,8 @@ final case class BlockFetchRequest(blocks: Seq[String]) extends ClientRequest {
  * Request to upload a block to the server. Currently the server does not ack the upload request.
  */
 private[netty]
-final case class BlockUploadRequest(blockId: String, data: ManagedBuffer) extends ClientRequest {
-  require(blockId.length <= Byte.MaxValue)
+final case class BlockUploadRequest(blockId: BlockId, data: ManagedBuffer) extends ClientRequest {
+  //require(blockId.length <= Byte.MaxValue)
   override def id = 1
 }
 
@@ -61,15 +62,15 @@ sealed trait ServerResponse {
 
 /** Response to [[BlockFetchRequest]] when a block exists and has been successfully fetched. */
 private[netty]
-final case class BlockFetchSuccess(blockId: String, data: ManagedBuffer) extends ServerResponse {
-  require(blockId.length <= Byte.MaxValue)
+final case class BlockFetchSuccess(blockId: BlockId, data: ManagedBuffer) extends ServerResponse {
+  //require(blockId.length <= Byte.MaxValue)
   override def id = 0
 }
 
 /** Response to [[BlockFetchRequest]] when there is an error fetching the block. */
 private[netty]
-final case class BlockFetchFailure(blockId: String, error: String) extends ServerResponse {
-  require(blockId.length <= Byte.MaxValue)
+final case class BlockFetchFailure(blockId: BlockId, error: String) extends ServerResponse {
+  //require(blockId.length <= Byte.MaxValue)
   override def id = 1
 }
 
@@ -89,14 +90,16 @@ final class ClientRequestEncoder extends MessageToMessageEncoder[ClientRequest] 
         // 1 byte: BlockFetchRequest vs BlockUploadRequest
         // 4 byte: num blocks
         // then for each block id write 1 byte for blockId.length and then blockId itself
-        val frameLength = 8 + 1 + 4 + blocks.size + blocks.map(_.size).fold(0)(_ + _)
+        val frameLength = 8 + 1 + 4 + blocks.map(_.encodedLength).fold(0)(_ + _)
         val buf = ctx.alloc().buffer(frameLength)
 
         buf.writeLong(frameLength)
         buf.writeByte(in.id)
         buf.writeInt(blocks.size)
-        blocks.foreach { blockId =>
-          ProtocolUtils.writeBlockId(buf, blockId)
+        var i = 0
+        while (i < blocks.length) {
+          ProtocolUtils.writeBlockId(buf, blocks(i))
+          i += 1
         }
 
         assert(buf.writableBytes() == 0)
@@ -107,7 +110,7 @@ final class ClientRequestEncoder extends MessageToMessageEncoder[ClientRequest] 
         // 1 byte: msg id (BlockFetchRequest vs BlockUploadRequest)
         // 1 byte: blockId.length
         // data itself (length can be derived from: frame size - 1 - blockId.length)
-        val headerLength = 8 + 1 + 1 + blockId.length
+        val headerLength = 8 + 1 + blockId.encodedLength
         val frameLength = headerLength + data.size
         val header = ctx.alloc().buffer(headerLength)
 
@@ -186,7 +189,7 @@ final class ServerResponseEncoder extends MessageToMessageEncoder[ServerResponse
         // 1 byte = message id (type)
         // 1 byte = block id length
         // followed by block id itself
-        val headerLength = 8 + 1 + 1 + blockId.length
+        val headerLength = 8 + 1 + blockId.encodedLength
         val frameLength = headerLength + data.size
         val header = ctx.alloc().buffer(headerLength)
         header.writeLong(frameLength)
@@ -198,7 +201,7 @@ final class ServerResponseEncoder extends MessageToMessageEncoder[ServerResponse
         out.add(body)
 
       case BlockFetchFailure(blockId, error) =>
-        val frameLength = 8 + 1 + 1 + blockId.length + error.length
+        val frameLength = 8 + 1 + blockId.encodedLength + error.length
         val buf = ctx.alloc().buffer(frameLength)
         buf.writeLong(frameLength)
         buf.writeByte(in.id)
@@ -256,15 +259,23 @@ private[netty] object ProtocolUtils {
   }
 
   // TODO(rxin): Make sure these work for all charsets.
-  def readBlockId(in: ByteBuf): String = {
-    val numBytesToRead = in.readByte().toInt
-    val bytes = new Array[Byte](numBytesToRead)
-    in.readBytes(bytes)
-    new String(bytes)
+  def readBlockId(in: ByteBuf): BlockId = {
+    val b = in.readByte()
+
+    if (b == 1) {
+      val shuffleId = in.readByte()
+      val mapId = in.readByte()
+      val reduceId = in.readByte()
+      new ShuffleBlockId(shuffleId, mapId, reduceId)
+    } else if (b == 2) {
+      val broadcastId = in.readLong()
+      new BroadcastBlockId(broadcastId)
+    } else {
+      throw new Exception("Unknown block id type")
+    }
   }
 
-  def writeBlockId(out: ByteBuf, blockId: String): Unit = {
-    out.writeByte(blockId.length)
-    out.writeBytes(blockId.getBytes)
+  def writeBlockId(out: ByteBuf, blockId: BlockId): Unit = {
+    blockId.encode(out)
   }
 }

@@ -23,6 +23,7 @@ import io.netty.channel.{ChannelHandlerContext, SimpleChannelInboundHandler}
 
 import org.apache.spark.Logging
 import org.apache.spark.network.BlockFetchingListener
+import org.apache.spark.storage.BlockId
 
 
 /**
@@ -35,14 +36,14 @@ private[netty]
 class BlockClientHandler extends SimpleChannelInboundHandler[ServerResponse] with Logging {
 
   /** Tracks the list of outstanding requests and their listeners on success/failure. */
-  private[this] val outstandingRequests: java.util.Map[String, BlockFetchingListener] =
-    new ConcurrentHashMap[String, BlockFetchingListener]
+  private[this] val outstandingRequests: java.util.Map[BlockId, BlockFetchingListener] =
+    new ConcurrentHashMap[BlockId, BlockFetchingListener]
 
-  def addRequest(blockId: String, listener: BlockFetchingListener): Unit = {
+  def addRequest(blockId: BlockId, listener: BlockFetchingListener): Unit = {
     outstandingRequests.put(blockId, listener)
   }
 
-  def removeRequest(blockId: String): Unit = {
+  def removeRequest(blockId: BlockId): Unit = {
     outstandingRequests.remove(blockId)
   }
 

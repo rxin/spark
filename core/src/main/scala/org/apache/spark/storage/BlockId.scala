@@ -46,6 +46,10 @@ sealed abstract class BlockId {
     case o: BlockId => getClass == o.getClass && name.equals(o.name)
     case _ => false
   }
+
+  def encodedLength: Int = 0
+
+  def encode(buf: io.netty.buffer.ByteBuf): Unit = ???
 }
 
 @DeveloperApi
@@ -56,6 +60,13 @@ case class RDDBlockId(rddId: Int, splitIndex: Int) extends BlockId {
 @DeveloperApi
 case class ShuffleBlockId(shuffleId: Int, mapId: Int, reduceId: Int) extends BlockId {
   def name = "shuffle_" + shuffleId + "_" + mapId + "_" + reduceId
+
+  override def encodedLength = 4
+  override def encode(buf: io.netty.buffer.ByteBuf): Unit = {
+    buf.writeByte(shuffleId)
+    buf.writeByte(mapId)
+    buf.writeByte(reduceId)
+  }
 }
 
 @DeveloperApi
@@ -71,6 +82,12 @@ case class ShuffleIndexBlockId(shuffleId: Int, mapId: Int, reduceId: Int) extend
 @DeveloperApi
 case class BroadcastBlockId(broadcastId: Long, field: String = "") extends BlockId {
   def name = "broadcast_" + broadcastId + (if (field == "") "" else "_" + field)
+
+  override def encodedLength = 9
+  override def encode(buf: io.netty.buffer.ByteBuf): Unit = {
+    buf.writeByte(2)
+    buf.writeLong(broadcastId)
+  }
 }
 
 @DeveloperApi

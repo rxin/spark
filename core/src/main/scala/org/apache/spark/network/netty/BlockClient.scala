@@ -24,6 +24,7 @@ import io.netty.channel.{ChannelFuture, ChannelFutureListener}
 
 import org.apache.spark.Logging
 import org.apache.spark.network.BlockFetchingListener
+import org.apache.spark.storage.BlockId
 
 
 /**
@@ -55,7 +56,7 @@ class BlockClient(cf: ChannelFuture, handler: BlockClientHandler) extends Closea
    * @param blockIds sequence of block ids to fetch.
    * @param listener callback to fire on fetch success / failure.
    */
-  def fetchBlocks(blockIds: Seq[String], listener: BlockFetchingListener): Unit = {
+  def fetchBlocks(blockIds: Seq[BlockId], listener: BlockFetchingListener): Unit = {
     var startTime: Long = 0
     logTrace {
       startTime = System.nanoTime()

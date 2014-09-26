@@ -139,18 +139,18 @@ final class ShuffleBlockFetcherIterator(
     bytesInFlight += req.size
 
     // so we can look up the size of each blockID
-    val sizeMap = req.blocks.map { case (blockId, size) => (blockId.toString, size) }.toMap
-    val blockIds = req.blocks.map(_._1.toString)
+    val sizeMap = req.blocks.map { case (blockId, size) => (blockId, size) }.toMap
+    val blockIds = req.blocks.map(_._1)
 
     blockTransferService.fetchBlocks(req.address.host, req.address.port, blockIds,
       new BlockFetchingListener {
-        override def onBlockFetchSuccess(blockId: String, buf: ManagedBuffer): Unit = {
+        override def onBlockFetchSuccess(blockId: BlockId, buf: ManagedBuffer): Unit = {
           // Only add the buffer to results queue if the iterator is not zombie,
           // i.e. cleanup() has not been called yet.
           if (!isZombie) {
             // Increment the ref count because we need to pass this to a different thread.
             // This needs to be released after use.
-            results.put(new FetchResult(BlockId(blockId), sizeMap(blockId), buf))
+            results.put(new FetchResult(blockId, sizeMap(blockId), buf))
             shuffleMetrics.remoteBytesRead += buf.size
             shuffleMetrics.remoteBlocksFetched += 1
           } else {
@@ -159,9 +159,9 @@ final class ShuffleBlockFetcherIterator(
           logDebug("Got remote block " + blockId + " after " + Utils.getUsedTimeMs(startTime))
         }
 
-        override def onBlockFetchFailure(blockId: String, e: Throwable): Unit = {
+        override def onBlockFetchFailure(blockId: BlockId, e: Throwable): Unit = {
           logError(s"Failed to get block(s) from ${req.address.host}:${req.address.port}", e)
-          results.put(new FetchResult(BlockId(blockId), -1, null))
+          results.put(new FetchResult(blockId, -1, null))
         }
       }
     )
@@ -229,7 +229,7 @@ final class ShuffleBlockFetcherIterator(
     while (iter.hasNext) {
       val blockId = iter.next()
       try {
-        val buf = blockManager.getBlockData(blockId.toString)
+        val buf = blockManager.getBlockData(blockId)
         shuffleMetrics.localBlocksFetched += 1
         buf.retain()
         results.put(new FetchResult(blockId, 0, buf))

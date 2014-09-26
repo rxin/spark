@@ -21,6 +21,7 @@ import io.netty.channel._
 
 import org.apache.spark.Logging
 import org.apache.spark.network.{ManagedBuffer, BlockDataManager}
+import org.apache.spark.storage.BlockId
 
 
 /**
@@ -45,7 +46,7 @@ private[netty] class BlockServerHandler(dataProvider: BlockDataManager)
     }
   }  // end of channelRead0
 
-  private def processBlockRequest(ctx: ChannelHandlerContext, blockId: String): Unit = {
+  private def processBlockRequest(ctx: ChannelHandlerContext, blockId: BlockId): Unit = {
     // A helper function to send error message back to the client.
     def client = ctx.channel.remoteAddress.toString
 

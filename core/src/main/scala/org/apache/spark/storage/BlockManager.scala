@@ -209,8 +209,8 @@ private[spark] class BlockManager(
    * Interface to get local block data. Throws an exception if the block cannot be found or
    * cannot be read successfully.
    */
-  override def getBlockData(blockId: String): ManagedBuffer = {
-    val bid = BlockId(blockId)
+  override def getBlockData(blockId: BlockId): ManagedBuffer = {
+    val bid = blockId
     if (bid.isShuffle) {
       shuffleManager.shuffleBlockManager.getBlockData(bid.asInstanceOf[ShuffleBlockId])
     } else {
@@ -227,8 +227,8 @@ private[spark] class BlockManager(
   /**
    * Put the block locally, using the given storage level.
    */
-  override def putBlockData(blockId: String, data: ManagedBuffer, level: StorageLevel): Unit = {
-    putBytes(BlockId(blockId), data.nioByteBuffer(), level)
+  override def putBlockData(blockId: BlockId, data: ManagedBuffer, level: StorageLevel): Unit = {
+    putBytes(blockId, data.nioByteBuffer(), level)
   }
 
   /**
@@ -502,7 +502,7 @@ private[spark] class BlockManager(
     for (loc <- locations) {
       logDebug(s"Getting remote block $blockId from $loc")
       val data = blockTransferService.fetchBlockSync(
-        loc.host, loc.port, blockId.toString).nioByteBuffer()
+        loc.host, loc.port, blockId).nioByteBuffer()
 
       if (data != null) {
         if (asBlockResult) {
@@ -792,7 +792,7 @@ private[spark] class BlockManager(
 
       try {
         blockTransferService.uploadBlockSync(
-          peer.host, peer.port, blockId.toString, new NioManagedBuffer(data), tLevel)
+          peer.host, peer.port, blockId, new NioManagedBuffer(data), tLevel)
       } catch {
         case e: Exception =>
           logError(s"Failed to replicate block to $peer", e)

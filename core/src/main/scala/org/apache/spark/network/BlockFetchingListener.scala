@@ -19,6 +19,8 @@ package org.apache.spark.network
 
 import java.util.EventListener
 
+import org.apache.spark.storage.BlockId
+
 
 /**
  * Listener callback interface for [[BlockTransferService.fetchBlocks]].
@@ -29,10 +31,10 @@ trait BlockFetchingListener extends EventListener {
   /**
    * Called once per successfully fetched block.
    */
-  def onBlockFetchSuccess(blockId: String, data: ManagedBuffer): Unit
+  def onBlockFetchSuccess(blockId: BlockId, data: ManagedBuffer): Unit
 
   /**
    * Called at least once per block upon failures.
    */
-  def onBlockFetchFailure(blockId: String, exception: Throwable): Unit
+  def onBlockFetchFailure(blockId: BlockId, exception: Throwable): Unit
 }

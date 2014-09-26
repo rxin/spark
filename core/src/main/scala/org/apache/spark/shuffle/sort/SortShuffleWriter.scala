@@ -31,6 +31,11 @@ import org.apache.spark.storage.BlockObjectWriter
 import org.apache.spark.util.collection.ExternalSorter
 
 
+object SortShuffleWriter {
+  val sem = new Semaphore(16)
+}
+
+
 private[spark] class SortShuffleWriter[K, V, C](
     shuffleBlockManager: IndexShuffleBlockManager,
     handle: BaseShuffleHandle[K, V, C],
@@ -69,6 +74,7 @@ private[spark] class SortShuffleWriter[K, V, C](
     // Track location of each range in the output file
     val partitionLengths = new Array[Long](dep.partitioner.numPartitions)
 
+    SortShuffleWriter.sem.acquire()
     val startTime = System.currentTimeMillis()
 
     val UNSAFE = SortUtils.UNSAFE
@@ -134,6 +140,8 @@ private[spark] class SortShuffleWriter[K, V, C](
     // Handle the last partition
     out.flush()
     out.close()
+
+    SortShuffleWriter.sem.release()
     writeMetrics.shuffleBytesWritten += totalWritten
     partitionLengths(lastPid) = offsetWithinPartition
 

@@ -80,13 +80,13 @@ final class NioBlockTransferService(conf: SparkConf, securityManager: SecurityMa
   override def fetchBlocks(
       hostName: String,
       port: Int,
-      blockIds: Seq[String],
+      blockIds: Seq[BlockId],
       listener: BlockFetchingListener): Unit = {
     checkInit()
 
     val cmId = new ConnectionManagerId(hostName, port)
     val blockMessageArray = new BlockMessageArray(blockIds.map { blockId =>
-      BlockMessage.fromGetBlock(GetBlock(BlockId(blockId)))
+      BlockMessage.fromGetBlock(GetBlock(blockId))
     })
 
     val future = cm.sendMessageReliably(cmId, blockMessageArray.toBufferMessage)
@@ -99,14 +99,14 @@ final class NioBlockTransferService(conf: SparkConf, securityManager: SecurityMa
       for (blockMessage: BlockMessage <- blockMessageArray) {
         if (blockMessage.getType != BlockMessage.TYPE_GOT_BLOCK) {
           if (blockMessage.getId != null) {
-            listener.onBlockFetchFailure(blockMessage.getId.toString,
+            listener.onBlockFetchFailure(blockMessage.getId,
               new SparkException(s"Unexpected message ${blockMessage.getType} received from $cmId"))
           }
         } else {
           val blockId = blockMessage.getId
           val networkSize = blockMessage.getData.limit()
           listener.onBlockFetchSuccess(
-            blockId.toString, new NioManagedBuffer(blockMessage.getData))
+            blockId, new NioManagedBuffer(blockMessage.getData))
         }
       }
     }(cm.futureExecContext)
@@ -126,12 +126,12 @@ final class NioBlockTransferService(conf: SparkConf, securityManager: SecurityMa
   override def uploadBlock(
       hostname: String,
       port: Int,
-      blockId: String,
+      blockId: BlockId,
       blockData: ManagedBuffer,
       level: StorageLevel)
     : Future[Unit] = {
     checkInit()
-    val msg = PutBlock(BlockId(blockId), blockData.nioByteBuffer(), level)
+    val msg = PutBlock(blockId, blockData.nioByteBuffer(), level)
     val blockMessageArray = new BlockMessageArray(BlockMessage.fromPutBlock(msg))
     val remoteCmId = new ConnectionManagerId(hostName, port)
     val reply = cm.sendMessageReliably(remoteCmId, blockMessageArray.toBufferMessage)
@@ -174,13 +174,13 @@ final class NioBlockTransferService(conf: SparkConf, securityManager: SecurityMa
       case BlockMessage.TYPE_PUT_BLOCK =>
         val msg = PutBlock(blockMessage.getId, blockMessage.getData, blockMessage.getLevel)
         logDebug("Received [" + msg + "]")
-        putBlock(msg.id.toString, msg.data, msg.level)
+        putBlock(msg.id, msg.data, msg.level)
         None
 
       case BlockMessage.TYPE_GET_BLOCK =>
         val msg = new GetBlock(blockMessage.getId)
         logDebug("Received [" + msg + "]")
-        val buffer = getBlock(msg.id.toString)
+        val buffer = getBlock(msg.id)
         if (buffer == null) {
           return None
         }
@@ -190,7 +190,7 @@ final class NioBlockTransferService(conf: SparkConf, securityManager: SecurityMa
     }
   }
 
-  private def putBlock(blockId: String, bytes: ByteBuffer, level: StorageLevel) {
+  private def putBlock(blockId: BlockId, bytes: ByteBuffer, level: StorageLevel) {
     val startTimeMs = System.currentTimeMillis()
     logDebug("PutBlock " + blockId + " started from " + startTimeMs + " with data: " + bytes)
     blockDataManager.putBlockData(blockId, new NioManagedBuffer(bytes), level)
@@ -198,7 +198,7 @@ final class NioBlockTransferService(conf: SparkConf, securityManager: SecurityMa
       + " with data size: " + bytes.limit)
   }
 
-  private def getBlock(blockId: String): ByteBuffer = {
+  private def getBlock(blockId: BlockId): ByteBuffer = {
     val startTimeMs = System.currentTimeMillis()
     logDebug("GetBlock " + blockId + " started from " + startTimeMs)
     // TODO(rxin): propagate error back to the client?
