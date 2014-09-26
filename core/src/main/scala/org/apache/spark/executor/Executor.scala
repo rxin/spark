@@ -117,7 +117,7 @@ private[spark] class Executor(
       val bm = env.blockManager
       val peers = env.blockManager.master.getPeers(bm.blockManagerId, 0)
       println("got peers " + peers)
-      val blocks = Seq.fill[BlockId](200)(BroadcastBlockId(200))
+      val blocks = Seq.fill[BlockId](200)(BroadcastBlockId(100))
       peers.foreach { peer =>
         env.blockTransferService.fetchBlocks(peer.host, peer.port, blocks,
           new BlockFetchingListener {
