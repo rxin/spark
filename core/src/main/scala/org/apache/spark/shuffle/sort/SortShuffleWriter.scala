@@ -32,7 +32,7 @@ import org.apache.spark.util.collection.ExternalSorter
 
 
 object SortShuffleWriter {
-  val semaphore = new Semaphore(8)
+  val semaphore = new Semaphore(16)
 }
 
 
