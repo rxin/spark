@@ -19,6 +19,7 @@ package org.apache.spark.shuffle
 
 import java.io._
 import java.nio.ByteBuffer
+import java.util.concurrent.ConcurrentHashMap
 
 import org.apache.spark.SparkEnv
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer}
@@ -74,20 +75,30 @@ class IndexShuffleBlockManager extends ShuffleBlockManager {
    * begins and ends.
    * */
   def writeIndexFile(shuffleId: Int, mapId: Int, lengths: Array[Long]) = {
-    val indexFile = getIndexFile(shuffleId, mapId)
-    val out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(indexFile)))
-    try {
-      // We take in lengths of each block, need to convert it to offsets.
-      var offset = 0L
-      out.writeLong(offset)
-
-      for (length <- lengths) {
-        offset += length
-        out.writeLong(offset)
-      }
-    } finally {
-      out.close()
+//    val indexFile = getIndexFile(shuffleId, mapId)
+//    val out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(indexFile)))
+//    try {
+//      // We take in lengths of each block, need to convert it to offsets.
+//      var offset = 0L
+//      out.writeLong(offset)
+//
+//      for (length <- lengths) {
+//        offset += length
+//        out.writeLong(offset)
+//      }
+//    } finally {
+//      out.close()
+//    }
+    val offsets = new Array[Long](lengths.length + 1)
+    var offset = 0L
+    offsets(0) = offset
+    var i = 0
+    while (i < lengths.length) {
+      offset += lengths(i)
+      offsets(i + 1) = offset
+      i += 1
     }
+    IndexShuffleBlockManager.offsets.put(mapId, offsets)
   }
 
   override def getBytes(blockId: ShuffleBlockId): Option[ByteBuffer] = {
@@ -97,21 +108,30 @@ class IndexShuffleBlockManager extends ShuffleBlockManager {
   override def getBlockData(blockId: ShuffleBlockId): ManagedBuffer = {
     // The block is actually going to be a range of a single map output file for this map, so
     // find out the consolidated file, then the offset within that from our index
-    val indexFile = getIndexFile(blockId.shuffleId, blockId.mapId)
-
-    val in = new DataInputStream(new FileInputStream(indexFile))
-    try {
-      in.skip(blockId.reduceId * 8)
-      val offset = in.readLong()
-      val nextOffset = in.readLong()
-      new FileSegmentManagedBuffer(
-        getDataFile(blockId.shuffleId, blockId.mapId),
-        offset,
-        nextOffset - offset)
-    } finally {
-      in.close()
-    }
+//    val indexFile = getIndexFile(blockId.shuffleId, blockId.mapId)
+//
+//    val in = new DataInputStream(new FileInputStream(indexFile))
+//    try {
+//      in.skip(blockId.reduceId * 8)
+//      val offset = in.readLong()
+//      val nextOffset = in.readLong()
+//      new FileSegmentManagedBuffer(
+//        getDataFile(blockId.shuffleId, blockId.mapId),
+//        offset,
+//        nextOffset - offset)
+//    } finally {
+//      in.close()
+//    }
+    val offsets = IndexShuffleBlockManager.offsets.get(blockId.mapId)
+    val offset = offsets(blockId.reduceId)
+    val len = offsets(blockId.reduceId + 1) - offset
+    new FileSegmentManagedBuffer(getDataFile(blockId.shuffleId, blockId.mapId), offset, len)
   }
 
   override def stop() = {}
+}
+
+object IndexShuffleBlockManager {
+  // from map id to offsets
+  val offsets = new ConcurrentHashMap[Int, Array[Long]]()
 }
