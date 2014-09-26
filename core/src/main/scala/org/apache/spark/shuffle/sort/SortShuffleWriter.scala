@@ -74,7 +74,7 @@ private[spark] class SortShuffleWriter[K, V, C](
     // Track location of each range in the output file
     val partitionLengths = new Array[Long](dep.partitioner.numPartitions)
 
-    SortShuffleWriter.sem.acquire()
+    //SortShuffleWriter.sem.acquire()
     val startTime = System.currentTimeMillis()
 
     val UNSAFE = SortUtils.UNSAFE
@@ -87,7 +87,7 @@ private[spark] class SortShuffleWriter[K, V, C](
     //val pair = new MutablePair[Long, Long]
 
     val baseAddress = SortUtils.sortBuffers.get().address
-    val out = new BufferedOutputStream(new FileOutputStream(outputFile))
+    val out = new BufferedOutputStream(new FileOutputStream(outputFile), 128 * 1024)
     val buf = new Array[Byte](100)
 
     dep.partitioner match {
@@ -141,7 +141,7 @@ private[spark] class SortShuffleWriter[K, V, C](
     out.flush()
     out.close()
 
-    SortShuffleWriter.sem.release()
+    //SortShuffleWriter.sem.release()
     writeMetrics.shuffleBytesWritten += totalWritten
     partitionLengths(lastPid) = offsetWithinPartition
 
