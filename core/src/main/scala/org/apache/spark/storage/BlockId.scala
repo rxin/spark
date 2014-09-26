@@ -83,10 +83,12 @@ case class ShuffleIndexBlockId(shuffleId: Int, mapId: Int, reduceId: Int) extend
 case class BroadcastBlockId(broadcastId: Long, field: String = "") extends BlockId {
   def name = "broadcast_" + broadcastId + (if (field == "") "" else "_" + field)
 
-  override def encodedLength = 9
+  override def encodedLength = 1 + 8 + 4 + field.length
   override def encode(buf: io.netty.buffer.ByteBuf): Unit = {
     buf.writeByte(2)
     buf.writeLong(broadcastId)
+    buf.writeInt(field.length)
+    buf.writeBytes(field.getBytes)
   }
 }
 

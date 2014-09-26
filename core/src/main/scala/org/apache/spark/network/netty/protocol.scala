@@ -269,7 +269,10 @@ private[netty] object ProtocolUtils {
       new ShuffleBlockId(shuffleId, mapId, reduceId)
     } else if (b == 2) {
       val broadcastId = in.readLong()
-      new BroadcastBlockId(broadcastId)
+      val fieldLen = in.readInt()
+      val fieldBytes = new Array[Byte](fieldLen)
+      in.readBytes(fieldBytes)
+      new BroadcastBlockId(broadcastId, new String(fieldBytes))
     } else {
       throw new Exception("Unknown block id type")
     }
