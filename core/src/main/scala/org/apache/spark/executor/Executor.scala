@@ -108,7 +108,7 @@ private[spark] class Executor(
 
   startDriverHeartbeater()
 
-  val buf = ByteBuffer.allocate(1024 * 1024)
+  val buf = ByteBuffer.allocate(2 * 1024 * 1024)
   env.blockManager.putBytes(BroadcastBlockId(100), buf, StorageLevel.MEMORY_ONLY_SER, true)
 
   private val timer = new java.util.Timer
@@ -117,7 +117,7 @@ private[spark] class Executor(
       val bm = env.blockManager
       val peers = env.blockManager.master.getPeers(bm.blockManagerId, 0)
       println("got peers " + peers)
-      val blocks = Seq.fill[BlockId](100)(BroadcastBlockId(100))
+      val blocks = Seq.fill[BlockId](200)(BroadcastBlockId(200))
       peers.foreach { peer =>
         env.blockTransferService.fetchBlocks(peer.host, peer.port, blocks,
           new BlockFetchingListener {
@@ -138,7 +138,7 @@ private[spark] class Executor(
           })
       }
     }
-  }, 1 * 60 * 1000)
+  }, 3 * 60 * 1000)
 
   def launchTask(
       context: ExecutorBackend, taskId: Long, taskName: String, serializedTask: ByteBuffer) {

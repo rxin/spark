@@ -86,7 +86,7 @@ class BlockClientHandler extends SimpleChannelInboundHandler[ServerResponse] wit
       case BlockFetchSuccess(blockId, buf) =>
         val listener = outstandingRequests.get(blockId)
         if (listener == null) {
-          logWarning(s"Got a response for block $blockId from $server but it is not outstanding")
+          //logWarning(s"Got a response for block $blockId from $server but it is not outstanding")
           buf.release()
         } else {
           outstandingRequests.remove(blockId)
