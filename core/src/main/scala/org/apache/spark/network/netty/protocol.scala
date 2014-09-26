@@ -264,8 +264,8 @@ private[netty] object ProtocolUtils {
 
     if (b == 1) {
       val shuffleId = in.readByte()
-      val mapId = in.readByte()
-      val reduceId = in.readByte()
+      val mapId = in.readShort()
+      val reduceId = in.readShort()
       new ShuffleBlockId(shuffleId, mapId, reduceId)
     } else if (b == 2) {
       val broadcastId = in.readLong()
