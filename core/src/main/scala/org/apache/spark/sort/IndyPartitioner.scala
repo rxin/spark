@@ -47,6 +47,50 @@ final case class IndyPartitioner(numPartitions: Int) extends Partitioner {
   }
 }
 
+final case class IndyPartitionerPB(numPartitions: Int) extends Partitioner {
+  import IndyPartitioner._
+
+  private[this] val rangePerPart: Long = {
+    val range = max - min + 1
+    val mod = range % numPartitions
+    val r = if (mod == 0) {
+      range / numPartitions
+    } else {
+      range / numPartitions + 1
+    }
+    r
+  }
+
+  /**
+   * Get the partition ID of a record (which contains an address pointing to an off-heap buffer.
+   *
+   * This works by getting a long value (8 bytes) from the beginning of the record, reverse the
+   * bytes (since x86 is little-endian, and we want unsigned bytes comparison), and then shift
+   * to the right 1 byte.
+   *
+   * This should be functionally equivalent to getting the first 7 bytes and assemble a long if
+   * the architecture is little-endian.
+   *
+   * As an example, input: 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a.
+   * getLong: 0x80 x07 0x06 0x05 0x04 0x03 0x02 0x01
+   * reverseBytes: 0x01 0x02 0x03 0x04 0x05 0x06 0x07 0x08
+   * >>> 8: 0x00 0x01 0x02 0x03 0x04 0x05 0x06 0x07
+   */
+  override def getPartition(key: Any): Int = ???
+
+  //  {
+  //    val addr: Long = key.asInstanceOf[Long]
+  //    val prefix = SortUtils.UNSAFE.getLong(addr)
+  //    ((java.lang.Long.reverseBytes(prefix) >>> 8) / rangePerPart).toInt
+  //  }
+
+  def getPartitionSpecialized(addr: Long): Int = {
+    val prefix = SortUtils.UNSAFE.getLong(addr)
+    ((java.lang.Long.reverseBytes(prefix) >>> 8) / rangePerPart).toInt
+  }
+}
+
+
 object IndyPartitioner {
 
   val min = Longs.fromBytes(0, 0, 0, 0, 0, 0, 0, 0)

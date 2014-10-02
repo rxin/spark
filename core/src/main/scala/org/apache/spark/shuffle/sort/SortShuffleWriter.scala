@@ -17,17 +17,15 @@
 
 package org.apache.spark.shuffle.sort
 
-import java.io.{FileOutputStream, BufferedOutputStream}
+import java.io.{File, FileOutputStream, BufferedOutputStream}
 import java.util.concurrent.Semaphore
 
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.sort.SortUtils
-import org.apache.spark.util.MutablePair
-import org.apache.spark.{MapOutputTracker, SparkEnv, Logging, TaskContext}
+import org.apache.spark._
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.scheduler.{LargeMapStatus, MapStatus}
 import org.apache.spark.shuffle.{IndexShuffleBlockManager, ShuffleWriter, BaseShuffleHandle}
-import org.apache.spark.storage.BlockObjectWriter
 import org.apache.spark.util.collection.ExternalSorter
 
 
@@ -66,7 +64,7 @@ private[spark] class SortShuffleWriter[K, V, C](
   override def write(records: Iterator[_ <: Product2[K, V]]): Unit = {
     val (numRecords, pointers) = records.next().asInstanceOf[(Long, Array[Long])]
 
-    val outputFile = shuffleBlockManager.getDataFile(dep.shuffleId, mapId)
+    val outputFile: File = shuffleBlockManager.getDataFile(dep.shuffleId, mapId)
     val blockId = shuffleBlockManager.consolidateId(dep.shuffleId, mapId)
 
     // Write the sorted output out.
@@ -89,6 +87,8 @@ private[spark] class SortShuffleWriter[K, V, C](
     val baseAddress = SortUtils.sortBuffers.get().address
     val out = new BufferedOutputStream(new FileOutputStream(outputFile), 128 * 1024)
     val buf = new Array[Byte](100)
+
+    val codec = new org.apache.spark.io.LZFCompressionCodec(new SparkConf)
 
     dep.partitioner match {
       case p: org.apache.spark.sort.DaytonaPartitioner =>
@@ -133,23 +133,61 @@ private[spark] class SortShuffleWriter[K, V, C](
           i += 1
         }
 
+      case p: org.apache.spark.sort.IndyPartitionerPB =>
+        assert(numRecords <= pointers.length)
+
+        var compressedOut = codec.compressedOutputStream(out)
+        var lastFileLen = 0L
+
+        while (i < numRecords) {
+          val pid = p.getPartitionSpecialized(pointers(i))
+          if (pid != lastPid) {
+            // This is a new pid. update the index.
+            compressedOut.flush()
+            compressedOut.close()
+
+            val currentFileLen = outputFile.length()
+            partitionLengths(lastPid) = currentFileLen - lastFileLen
+            lastFileLen = currentFileLen
+            writeMetrics.shuffleBytesWritten += partitionLengths(lastPid)
+            lastPid = pid
+
+            val out1 = new BufferedOutputStream(new FileOutputStream(outputFile, true), 128 * 1024)
+            compressedOut = codec.compressedOutputStream(out1)
+          }
+
+          val addr = pointers(i)
+          UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
+          compressedOut.write(buf)
+          totalWritten += 100
+          i += 1
+        }
+
+        compressedOut.flush()
+        compressedOut.close()
+        val currentFileLen = outputFile.length()
+        partitionLengths(lastPid) = currentFileLen - lastFileLen
+        writeMetrics.shuffleBytesWritten += partitionLengths(lastPid)
+
       case _ =>
         throw new RuntimeException("Unknown partitioner type " + dep.partitioner)
     }
 
-    // Handle the last partition
-    out.flush()
-    out.close()
+    if (!dep.partitioner.isInstanceOf[org.apache.spark.sort.IndyPartitionerPB]) {
+      // Handle the last partition
+      out.flush()
+      out.close()
 
-    //SortShuffleWriter.sem.release()
-    writeMetrics.shuffleBytesWritten += offsetWithinPartition
-    partitionLengths(lastPid) = offsetWithinPartition
+      //SortShuffleWriter.sem.release()
+      writeMetrics.shuffleBytesWritten += offsetWithinPartition
+      partitionLengths(lastPid) = offsetWithinPartition
 
-    if (lastPid < dep.partitioner.numPartitions - 1) {
-      var i = lastPid
-      while (i < dep.partitioner.numPartitions - 1) {
-        partitionLengths(i) = 0
-        i += 1
+      if (lastPid < dep.partitioner.numPartitions - 1) {
+        var i = lastPid
+        while (i < dep.partitioner.numPartitions - 1) {
+          partitionLengths(i) = 0
+          i += 1
+        }
       }
     }
 
