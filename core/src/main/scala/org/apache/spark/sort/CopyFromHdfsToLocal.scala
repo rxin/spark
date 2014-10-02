@@ -38,6 +38,9 @@ object CopyFromHdfsToLocal {
 
     val inputs = files.toArray
 
+    files.foreach(println)
+    println("NUMBER OF FILES TO COPY: " + files.length)
+
     val out = new NodeLocalRDD[(Int, String, String)](sc, files.length, inputs.map(_._2)) {
       override def compute(split: Partition, context: TaskContext) = {
         val input = inputs(split.index)._1

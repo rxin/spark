@@ -158,55 +158,34 @@ object IndyHdfsSort extends Logging {
     println("total number of records: " + recordsAfterSort)
   }
 
-  def readFileIntoBuffer(inputFile: String, sortBuffer: SortBuffer) {
+  def readFileIntoBuffer(inputFile: String, fileSize: Long, sortBuffer: SortBuffer) {
     logInfo(s"XXX start reading file $inputFile")
-    println(s"XXX start reading file $inputFile")
+    println(s"XXX start reading file $inputFile with size $fileSize")
     val startTime = System.currentTimeMillis()
-    val fileSize = new File(inputFile).length
     assert(fileSize % 100 == 0)
 
+    val conf = new Configuration()
+    val fs = org.apache.hadoop.fs.FileSystem.get(conf)
+    val path = new Path(inputFile)
+    var is: InputStream = null
+
     val baseAddress: Long = sortBuffer.address
-    var is: FileInputStream = null
-    var channel: FileChannel = null
+    val buf = new Array[Byte](4 * 1024 * 1024)
     var read = 0L
-    var fd: FileDescriptor = null
     try {
-      is = new FileInputStream(inputFile)
-      fd = is.getFD
-      channel = is.getChannel()
+      is = fs.open(path, 4 * 1024 * 1024)
       while (read < fileSize) {
-        // This should read read0 bytes directly into our buffer
-        sortBuffer.ioBuf.clear()
-        sortBuffer.setIoBufAddress(baseAddress + read)
-        assert(
-          sortBuffer.ioBufAddress >= baseAddress && sortBuffer.ioBufAddress <= baseAddress + fileSize,
-          s"failed assertion $baseAddress <= ${sortBuffer.ioBufAddress} <= ${baseAddress + fileSize}")
-        val read0 = channel.read(sortBuffer.ioBuf)
+        val read0 = is.read(buf)
+        assert(read0 > 0, s"only read $read0 bytes this time; read $read; total $fileSize")
+        UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, baseAddress + read, read0)
         read += read0
       }
+      assert(read == fileSize)
     } finally {
-      if (channel != null) {
-        channel.close()
-      }
       if (is != null) {
         is.close()
       }
     }
-
-    if (fd != null) {
-      future {
-        // Drop from buffer cache
-        val f = new FileInputStream(inputFile)
-        NativeIO.POSIX.getCacheManipulator.posixFadviseIfPossible(
-          inputFile,
-          f.getFD,
-          0,
-          fileSize,
-          NativeIO.POSIX.POSIX_FADV_DONTNEED)
-        f.close()
-      }
-    }
-
     val timeTaken = System.currentTimeMillis() - startTime
     logInfo(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
     println(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
@@ -254,8 +233,7 @@ object IndyHdfsSort extends Logging {
         val part = split.index
 
         val inputFile = dir + s"/part$part.dat"
-        val fileSize = new File(inputFile).length
-        assert(fileSize % 100 == 0)
+        val fileSize = recordsPerPartition * 100
 
         if (sortBuffers.get == null) {
           // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
@@ -272,7 +250,7 @@ object IndyHdfsSort extends Logging {
           logInfo(s"acquired semaphore for $inputFile took " + (System.currentTimeMillis - startTime) + " ms")
         }
 
-        readFileIntoBuffer(inputFile, sortBuffer)
+        readFileIntoBuffer(inputFile, fileSize, sortBuffer)
         diskSemaphore.release()
 
         // Sort!!!
