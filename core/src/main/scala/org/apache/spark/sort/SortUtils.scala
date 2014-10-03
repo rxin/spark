@@ -23,7 +23,7 @@ object SortUtils {
   final class SortBuffer(capacity: Long) {
     require(capacity <= Int.MaxValue)
 
-    val IO_BUF_LEN = 4 * 1024 * 1024
+    val IO_BUF_LEN = 8 * 1024 * 1024
 
     /** size of the buffer, starting at [[address]] */
     val len: Long = capacity * 100
