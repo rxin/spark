@@ -184,8 +184,8 @@ final class ServerResponseEncoder extends MessageToMessageEncoder[ServerResponse
             return
         }
 
-        println(s"$blockId len ${data.size}")
-        scala.Console.flush()
+        //println(s"$blockId len ${data.size}")
+        //scala.Console.flush()
 
         // If we got here, body cannot be null
         // 8 bytes = long for frame length
