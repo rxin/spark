@@ -90,15 +90,28 @@ object DaytonaSort extends Logging {
         a match {
           case buf: NettyManagedBuffer =>
             val bytebuf = buf.convertToNetty().asInstanceOf[ByteBuf]
-            val len = bytebuf.readableBytes()
-            assert(len == a.size, s"len $len a.size ${a.size}")
-            if (len > 0) {
-              assert(len % 100 == 0)
+            val blockLen = bytebuf.readableBytes()
+            assert(blockLen == a.size, s"len $blockLen a.size ${a.size}")
+            if (blockLen > 0) {
+              assert(blockLen % 100 == 0)
               assert(bytebuf.hasMemoryAddress)
               val start = bytebuf.memoryAddress + bytebuf.readerIndex
-              UNSAFE.copyMemory(start, sortBuffer.currentChunkBaseAddress + offsetInChunk, len)
-              offsetInChunk += len
-              totalBytesRead += len
+
+              var blockRead: Long = 0
+              while (blockRead < blockLen) {
+                if (offsetInChunk + (blockLen - blockRead) > sortBuffer.CHUNK_SIZE) {
+                  sortBuffer.markLastChunkUsage(offsetInChunk)
+                  sortBuffer.allocateNewChunk()
+                  offsetInChunk = 0
+                }
+                val read0 = math.min(blockLen - blockRead, sortBuffer.CHUNK_SIZE - offsetInChunk)
+                UNSAFE.copyMemory(start + blockRead, sortBuffer.currentChunkBaseAddress + offsetInChunk, read0)
+                blockRead += read0
+                offsetInChunk += read0
+              }
+
+              //offsetInChunk += len
+              totalBytesRead += blockLen
             }
             bytebuf.release()
 
