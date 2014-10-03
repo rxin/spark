@@ -231,6 +231,7 @@ private[spark] class SortShuffleWriter[K, V, C](
           partitionLengths(j) = left
 
           println("index is " + partitionLengths.toSeq)
+          println("total bucket len is " + partitionLengths.sum)
 
         case _ =>
           partitionLengths(prevPid) = offsetWithinPartition
