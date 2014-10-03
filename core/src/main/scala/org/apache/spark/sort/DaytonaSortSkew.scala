@@ -280,7 +280,7 @@ object DaytonaSortSkew extends Logging {
 
           val skip = recordsPerPartition / samplePerPartition * 100
 
-          val rand = new java.util.Random(11)
+          val rand = new java.util.Random(part)
           val sampleLocs = Array.fill[Long](samplePerPartition)(
             math.abs(rand.nextLong()) % recordsPerPartition)
           java.util.Arrays.sort(sampleLocs)
