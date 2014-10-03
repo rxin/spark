@@ -155,6 +155,8 @@ final class NettyManagedBuffer(buf: ByteBuf) extends ManagedBuffer {
 
   override def convertToNetty(): AnyRef = buf
 
+  override def toString = s"NettyManagedBuffer($buf, $size)"
+
   override def retain(): this.type = {
     buf.retain()
     this

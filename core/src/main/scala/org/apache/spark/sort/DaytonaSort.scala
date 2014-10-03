@@ -86,6 +86,9 @@ object DaytonaSort extends Logging {
           offsetInChunk = 0
         }
 
+        println(Thread.currentThread().getName + " " + a)
+        scala.Console.flush()
+
         a match {
           case buf: NettyManagedBuffer =>
             val bytebuf = buf.convertToNetty().asInstanceOf[ByteBuf]
@@ -130,6 +133,7 @@ object DaytonaSort extends Logging {
               var read = 0L
               while (read < buf.length) {
                 val read0 = bfs.read(buf100)
+                assert(read0 > 0, s"read0 is $read0")
                 UNSAFE.copyMemory(buf100, BYTE_ARRAY_BASE_OFFSET,
                   null, sortBuffer.currentChunkBaseAddress + offsetInChunk + read,
                   read0)
