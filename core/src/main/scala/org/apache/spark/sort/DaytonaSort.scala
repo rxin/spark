@@ -308,7 +308,7 @@ object DaytonaSort extends Logging {
           val conf = new Configuration()
           val fs = org.apache.hadoop.fs.FileSystem.get(conf)
           val path = new Path(inputFile)
-          val is = fs.open(path, 4 * 1024 * 1024)
+          val is = fs.open(path, 10)
 
           val skip = recordsPerPartition / samplePerPartition * 100
 
