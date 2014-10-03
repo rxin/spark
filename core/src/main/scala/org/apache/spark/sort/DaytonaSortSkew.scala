@@ -280,10 +280,16 @@ object DaytonaSortSkew extends Logging {
 
           val skip = recordsPerPartition / samplePerPartition * 100
 
+          val rand = new java.util.Random(11)
+          val sampleLocs = Array.fill[Long](samplePerPartition)(
+            math.abs(rand.nextLong()) % recordsPerPartition)
+          java.util.Arrays.sort(sampleLocs)
+
           val samples = new Array[Array[Byte]](samplePerPartition)
           var sampleCount = 0
           while (sampleCount < samplePerPartition) {
-            is.seek(sampleCount * skip)
+            //is.seek(sampleCount * skip)
+            is.seek(sampleLocs(sampleCount) * 100)
             // Read the first 10 byte, and save that.
             val buf = new Array[Byte](10)
             val read0 = is.read(buf)
