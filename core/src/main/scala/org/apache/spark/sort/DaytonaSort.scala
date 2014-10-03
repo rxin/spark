@@ -299,6 +299,7 @@ object DaytonaSort extends Logging {
 
       val timeTaken = System.currentTimeMillis() - startTime
       logInfo(s"XXXX sampling ${sampleKeys.size} keys took $timeTaken ms")
+      println(s"XXXX sampling ${sampleKeys.size} keys took $timeTaken ms")
 
       assert(sampleKeys.length == samplePerPartition * numParts,
         s"expect sampledKeys to be ${samplePerPartition * numParts}, but got ${sampleKeys.size}")
