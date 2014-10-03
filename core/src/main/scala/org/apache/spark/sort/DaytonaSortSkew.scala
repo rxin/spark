@@ -266,7 +266,7 @@ object DaytonaSortSkew extends Logging {
 
     {
       val startTime = System.currentTimeMillis()
-      val samplePerPartition = 97
+      val samplePerPartition = conf.getInt("spark.samplePerPartition", 97)
       val numSampleKeys = numParts * samplePerPartition
       val sampleKeys = new NodeLocalReplicaRDD[Array[Byte]](sc, numParts, replicatedHosts) {
         override def compute(split: Partition, context: TaskContext) = {
@@ -305,9 +305,9 @@ object DaytonaSortSkew extends Logging {
 
       java.util.Arrays.sort(sampleKeys, UnsignedBytes.lexicographicalComparator())
 
-      sampleKeys.foreach { k =>
-        println(k.toSeq)
-      }
+//      sampleKeys.foreach { k =>
+//        println(k.toSeq)
+//      }
 
       var i = 0
       while (i < numParts - 1) {
