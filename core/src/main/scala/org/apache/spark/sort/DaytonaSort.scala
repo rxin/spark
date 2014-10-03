@@ -80,7 +80,10 @@ object DaytonaSort extends Logging {
         val a = n._2.asInstanceOf[ManagedBuffer]
         assert(a.size % 100 == 0, s"shuffle block size ${a.size} is wrong")
 
-        assert(a.size < sortBuffer.CHUNK_SIZE, s"buf len is ${a.size}")
+        //assert(a.size < sortBuffer.CHUNK_SIZE, s"buf len is ${a.size}")
+        if (a.size > sortBuffer.CHUNK_SIZE) {
+          println(s"buf size is ${a.size}")
+        }
         if (offsetInChunk + a.size > sortBuffer.CHUNK_SIZE) {
           sortBuffer.markLastChunkUsage(offsetInChunk)
           sortBuffer.allocateNewChunk()
@@ -99,15 +102,15 @@ object DaytonaSort extends Logging {
 
               var blockRead: Long = 0
               while (blockRead < blockLen) {
+                val read0 = math.min(blockLen - blockRead, sortBuffer.CHUNK_SIZE - offsetInChunk)
+                UNSAFE.copyMemory(start + blockRead, sortBuffer.currentChunkBaseAddress + offsetInChunk, read0)
+                blockRead += read0
+                offsetInChunk += read0
                 if (offsetInChunk + (blockLen - blockRead) > sortBuffer.CHUNK_SIZE) {
                   sortBuffer.markLastChunkUsage(offsetInChunk)
                   sortBuffer.allocateNewChunk()
                   offsetInChunk = 0
                 }
-                val read0 = math.min(blockLen - blockRead, sortBuffer.CHUNK_SIZE - offsetInChunk)
-                UNSAFE.copyMemory(start + blockRead, sortBuffer.currentChunkBaseAddress + offsetInChunk, read0)
-                blockRead += read0
-                offsetInChunk += read0
               }
 
               //offsetInChunk += len
