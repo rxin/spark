@@ -90,30 +90,34 @@ object DaytonaSort extends Logging {
           case buf: NettyManagedBuffer =>
             val bytebuf = buf.convertToNetty().asInstanceOf[ByteBuf]
             val len = bytebuf.readableBytes()
-            assert(len % 100 == 0)
-            assert(bytebuf.hasMemoryAddress)
-            val start = bytebuf.memoryAddress + bytebuf.readerIndex
-            UNSAFE.copyMemory(start, sortBuffer.currentChunkBaseAddress + offsetInChunk, len)
-            offsetInChunk += len
-            totalBytesRead += len
+            if (len > 0) {
+              assert(len % 100 == 0)
+              assert(bytebuf.hasMemoryAddress)
+              val start = bytebuf.memoryAddress + bytebuf.readerIndex
+              UNSAFE.copyMemory(start, sortBuffer.currentChunkBaseAddress + offsetInChunk, len)
+              offsetInChunk += len
+              totalBytesRead += len
+            }
             bytebuf.release()
 
           case buf: FileSegmentManagedBuffer =>
-            val fs = new FileInputStream(buf.file)
-            val channel = fs.getChannel
-            channel.position(buf.offset)
-            // Each shuffle block should not be bigger than our io buf capacity
-            assert(buf.length < sortBuffer.ioBuf.capacity,
-              s"buf length is ${buf.length}} while capacity is ${sortBuffer.ioBuf.capacity}")
-            sortBuffer.ioBuf.clear()
-            sortBuffer.ioBuf.limit(buf.length.toInt)
-            sortBuffer.setIoBufAddress(sortBuffer.currentChunkBaseAddress + offsetInChunk)
-            val read0 = channel.read(sortBuffer.ioBuf)
-            assert(read0 == buf.length, s"read $read0 while size is ${buf.length} $buf")
-            offsetInChunk += read0
-            totalBytesRead += read0
-            channel.close()
-            fs.close()
+            if (buf.length > 0) {
+              val fs = new FileInputStream(buf.file)
+              val channel = fs.getChannel
+              channel.position(buf.offset)
+              // Each shuffle block should not be bigger than our io buf capacity
+              assert(buf.length < sortBuffer.ioBuf.capacity,
+                s"buf length is ${buf.length}} while capacity is ${sortBuffer.ioBuf.capacity}")
+              sortBuffer.ioBuf.clear()
+              sortBuffer.ioBuf.limit(buf.length.toInt)
+              sortBuffer.setIoBufAddress(sortBuffer.currentChunkBaseAddress + offsetInChunk)
+              val read0 = channel.read(sortBuffer.ioBuf)
+              assert(read0 == buf.length, s"read $read0 while size is ${buf.length} $buf")
+              offsetInChunk += read0
+              totalBytesRead += read0
+              channel.close()
+              fs.close()
+            }
         }
 
         numShuffleBlocks += 1
