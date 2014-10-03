@@ -80,14 +80,12 @@ object DaytonaSort extends Logging {
         val a = n._2.asInstanceOf[ManagedBuffer]
         assert(a.size % 100 == 0, s"shuffle block size ${a.size} is wrong")
 
+        assert(a.size < sortBuffer.CHUNK_SIZE, s"buf len is ${a.size}")
         if (offsetInChunk + a.size > sortBuffer.CHUNK_SIZE) {
           sortBuffer.markLastChunkUsage(offsetInChunk)
           sortBuffer.allocateNewChunk()
           offsetInChunk = 0
         }
-
-        println(Thread.currentThread().getName + " " + a)
-        scala.Console.flush()
 
         a match {
           case buf: NettyManagedBuffer =>
