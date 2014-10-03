@@ -266,7 +266,7 @@ object DaytonaSortSkew extends Logging {
 
     {
       val startTime = System.currentTimeMillis()
-      val samplePerPartition = conf.getInt("spark.samplePerPartition", 97)
+      val samplePerPartition = new SparkConf().getInt("spark.samplePerPartition", 97)
       val numSampleKeys = numParts * samplePerPartition
       val sampleKeys = new NodeLocalReplicaRDD[Array[Byte]](sc, numParts, replicatedHosts) {
         override def compute(split: Partition, context: TaskContext) = {
