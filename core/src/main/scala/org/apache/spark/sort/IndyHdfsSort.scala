@@ -29,7 +29,8 @@ object IndyHdfsSort extends Logging {
    * A semaphore to control concurrency when reading from disks. Right now we allow only eight
    * concurrent tasks to read. The rest will block.
    */
-  private[this] val diskSemaphore = new Semaphore(16)
+  private[this] val diskSemaphore = new Semaphore(8)
+  private[this] val networkSemaphore = new Semaphore(16)
 
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
@@ -66,7 +67,7 @@ object IndyHdfsSort extends Logging {
     {
       logInfo(s"trying to acquire semaphore for $outputFile")
       val startTime = System.currentTimeMillis
-      diskSemaphore.acquire()
+      networkSemaphore.acquire()
       logInfo(s"acquired semaphore for $outputFile took " + (System.currentTimeMillis - startTime) + " ms")
     }
 
@@ -106,7 +107,7 @@ object IndyHdfsSort extends Logging {
         numShuffleBlocks += 1
       }
 
-      diskSemaphore.release()
+      networkSemaphore.release()
 
       val timeTaken = System.currentTimeMillis() - startTime
       logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
