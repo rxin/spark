@@ -18,6 +18,8 @@ import org.apache.spark.rdd.{ShuffledRDD, RDD}
  */
 object PBSort extends Logging {
 
+  private[this] val diskSemaphore = new java.util.concurrent.Semaphore(16)
+
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
     val numParts = args(1).toInt
@@ -141,31 +143,34 @@ object PBSort extends Logging {
       val sortBuffer = sortBuffers.get()
       var addr: Long = sortBuffer.address
 
-    {
-      val startTime = System.currentTimeMillis
-      while (iter.hasNext) {
-        val buf = iter.next()
-        UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, addr, 100)
-        addr += 100
+      diskSemaphore.acquire()
+
+      {
+        val startTime = System.currentTimeMillis
+        while (iter.hasNext) {
+          val buf = iter.next()
+          UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, null, addr, 100)
+          addr += 100
+        }
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo(s"XXX creating $recordsPerPartition records took $timeTaken ms")
       }
-      val timeTaken = System.currentTimeMillis - startTime
-      logInfo(s"XXX creating $recordsPerPartition records took $timeTaken ms")
-    }
+      diskSemaphore.release()
       assert(addr - sortBuffer.address == 100L * recordsPerPartition)
 
       buildLongPointers(sortBuffer, addr - sortBuffer.address)
 
-      // Sort!!!
-    {
-      val startTime = System.currentTimeMillis
-      //val sorter = new Sorter(new LongArraySorter).sort(
-      //  sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
-      sortWithKeys(sortBuffer, recordsPerPartition.toInt)
-      val timeTaken = System.currentTimeMillis - startTime
-      logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
-      println(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
-      scala.Console.flush()
-    }
+        // Sort!!!
+      {
+        val startTime = System.currentTimeMillis
+        //val sorter = new Sorter(new LongArraySorter).sort(
+        //  sortBuffer.pointers, 0, recordsPerPartition.toInt, ord)
+        sortWithKeys(sortBuffer, recordsPerPartition.toInt)
+        val timeTaken = System.currentTimeMillis - startTime
+        logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
+        println(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
+        scala.Console.flush()
+      }
 
       Iterator((recordsPerPartition, sortBuffer.pointers))
     }
