@@ -56,6 +56,7 @@ object SortUtils {
     def allocateNewChunk() {
       chunkBegin(currentNumChunks) = UNSAFE.allocateMemory(CHUNK_SIZE)
       currentNumChunks += 1
+      println(s"allocating new chunk at $currentNumChunks")
     }
 
     def markLastChunkUsage(len: Long) {

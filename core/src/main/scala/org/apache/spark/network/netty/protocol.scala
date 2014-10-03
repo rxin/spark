@@ -184,13 +184,16 @@ final class ServerResponseEncoder extends MessageToMessageEncoder[ServerResponse
             return
         }
 
+        println(s"$blockId len ${data.size}")
+        scala.Console.flush()
+
         // If we got here, body cannot be null
         // 8 bytes = long for frame length
         // 1 byte = message id (type)
         // 1 byte = block id length
         // followed by block id itself
         val headerLength = 8 + 1 + blockId.encodedLength
-        val frameLength = headerLength + data.size
+        val frameLength: Long = headerLength + data.size
         val header = ctx.alloc().buffer(headerLength)
         header.writeLong(frameLength)
         header.writeByte(in.id)
