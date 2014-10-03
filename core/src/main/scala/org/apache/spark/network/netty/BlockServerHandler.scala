@@ -70,8 +70,6 @@ private[netty] class BlockServerHandler(dataProvider: BlockDataManager)
     var buf: ManagedBuffer = null
     try {
       buf = dataProvider.getBlockData(blockId)
-      println(s"Received request from $client to fetch block $blockId $buf")
-      scala.Console.flush()
     } catch {
       case e: Exception =>
         logError(s"Error opening block $blockId for request from $client", e)
