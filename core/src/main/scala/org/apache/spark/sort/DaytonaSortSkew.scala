@@ -305,6 +305,10 @@ object DaytonaSortSkew extends Logging {
 
       java.util.Arrays.sort(sampleKeys, UnsignedBytes.lexicographicalComparator())
 
+      sampleKeys.foreach { k =>
+        println(k.toSeq)
+      }
+
       var i = 0
       while (i < numParts - 1) {
         val k = sampleKeys((i + 1) * samplePerPartition)
