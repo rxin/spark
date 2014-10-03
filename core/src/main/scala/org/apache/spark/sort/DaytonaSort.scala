@@ -106,15 +106,19 @@ object DaytonaSort extends Logging {
               val channel = fs.getChannel
               channel.position(buf.offset)
               // Each shuffle block should not be bigger than our io buf capacity
-              assert(buf.length < sortBuffer.ioBuf.capacity,
-                s"buf length is ${buf.length}} while capacity is ${sortBuffer.ioBuf.capacity}")
-              sortBuffer.ioBuf.clear()
-              sortBuffer.ioBuf.limit(buf.length.toInt)
-              sortBuffer.setIoBufAddress(sortBuffer.currentChunkBaseAddress + offsetInChunk)
-              val read0 = channel.read(sortBuffer.ioBuf)
-              assert(read0 == buf.length, s"read $read0 while size is ${buf.length} $buf")
-              offsetInChunk += read0
-              totalBytesRead += read0
+              //assert(buf.length < sortBuffer.ioBuf.capacity,
+              //  s"buf length is ${buf.length}} while capacity is ${sortBuffer.ioBuf.capacity}")
+              var read = 0L
+              while (read < buf.length) {
+                sortBuffer.ioBuf.clear()
+                sortBuffer.ioBuf.limit(math.min(buf.length - read, sortBuffer.IO_BUF_LEN).toInt)
+                sortBuffer.setIoBufAddress(sortBuffer.currentChunkBaseAddress + offsetInChunk)
+                val read0 = channel.read(sortBuffer.ioBuf)
+                read += read0
+              }
+              assert(read == buf.length, s"read $read while size is ${buf.length} $buf")
+              offsetInChunk += read
+              totalBytesRead += read
               channel.close()
               fs.close()
             }
