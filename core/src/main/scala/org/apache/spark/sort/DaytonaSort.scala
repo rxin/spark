@@ -102,6 +102,7 @@ object DaytonaSort extends Logging {
 
           case buf: FileSegmentManagedBuffer =>
             if (buf.length > 0) {
+              /*
               val fs = new FileInputStream(buf.file)
               val channel = fs.getChannel
               channel.position(buf.offset)
@@ -121,6 +122,23 @@ object DaytonaSort extends Logging {
               totalBytesRead += read
               channel.close()
               fs.close()
+              */
+              val fs = new FileInputStream(buf.file)
+              val bfs = new BufferedInputStream(fs, 128 * 1024)
+              val buf100 = new Array[Byte](100)
+              bfs.skip(buf.offset)
+              var read = 0L
+              while (read < buf.length) {
+                val read0 = bfs.read(buf100)
+                UNSAFE.copyMemory(buf100, BYTE_ARRAY_BASE_OFFSET,
+                  null, sortBuffer.currentChunkBaseAddress + offsetInChunk + read,
+                  read0)
+                read += read0
+              }
+              assert(read == buf.length, s"read $read while size is ${buf.length} $buf")
+              offsetInChunk += read
+              totalBytesRead += read
+              bfs.close()
             }
         }
 
