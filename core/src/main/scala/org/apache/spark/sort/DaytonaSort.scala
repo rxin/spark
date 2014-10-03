@@ -93,6 +93,7 @@ object DaytonaSort extends Logging {
           case buf: NettyManagedBuffer =>
             val bytebuf = buf.convertToNetty().asInstanceOf[ByteBuf]
             val len = bytebuf.readableBytes()
+            assert(len == a.size, s"len $len a.size ${a.size}")
             if (len > 0) {
               assert(len % 100 == 0)
               assert(bytebuf.hasMemoryAddress)
@@ -127,9 +128,10 @@ object DaytonaSort extends Logging {
               fs.close()
               */
               val fs = new FileInputStream(buf.file)
+              val skipped = fs.skip(buf.offset)
+              assert(skipped == buf.offset, s"supposed to skip ${buf.offset} but got $skipped")
               val bfs = new BufferedInputStream(fs, 128 * 1024)
               val buf100 = new Array[Byte](100)
-              bfs.skip(buf.offset)
               var read = 0L
               while (read < buf.length) {
                 val read0 = bfs.read(buf100)
