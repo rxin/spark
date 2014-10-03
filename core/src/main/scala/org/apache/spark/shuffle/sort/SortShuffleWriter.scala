@@ -222,6 +222,7 @@ private[spark] class SortShuffleWriter[K, V, C](
           var left = offsetWithinPartition
           val sizePerBucket = (offsetWithinPartition / (dep.partitioner.numPartitions - prevPid)) / 100 * 100
           var j = prevPid
+          println(s"offsetWithinPartition $offsetWithinPartition prevPid $prevPid num parts ${dep.partitioner.numPartitions}")
           while (j < dep.partitioner.numPartitions - 1) {
             partitionLengths(j) = sizePerBucket
             left -= sizePerBucket
