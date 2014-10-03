@@ -78,7 +78,7 @@ private[spark] class SortShuffleWriter[K, V, C](
     val UNSAFE = SortUtils.UNSAFE
     val BYTE_ARRAY_BASE_OFFSET = SortUtils.BYTE_ARRAY_BASE_OFFSET
     var i = 0
-    var lastPid = 0
+    var prevPid = 0
     var offsetWithinPartition = 0L
     var totalWritten = 0L
     //var writer: BlockObjectWriter = null
@@ -93,16 +93,50 @@ private[spark] class SortShuffleWriter[K, V, C](
     dep.partitioner match {
       case p: org.apache.spark.sort.DaytonaPartitioner =>
         assert(numRecords * 2 <= pointers.length)
-        p.setKeys(pointers)
+        p.setKeys()
 
         while (i < numRecords) {
           val pid = p.getPartitionSpecialized(pointers(i * 2), pointers(i * 2 + 1))
-          if (pid != lastPid) {
+          if (pid != prevPid) {
             // This is a new pid. update the index.
-            partitionLengths(lastPid) = offsetWithinPartition
+            partitionLengths(prevPid) = offsetWithinPartition
             writeMetrics.shuffleBytesWritten += offsetWithinPartition
             offsetWithinPartition = 0L
-            lastPid = pid
+            prevPid = pid
+          }
+          val addr = baseAddress + (pointers(i * 2 + 1) & 0xFFFFFFFFL) * 100
+          UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
+          out.write(buf)
+          offsetWithinPartition += 100
+          totalWritten += 100
+          i += 1
+        }
+
+      case p: org.apache.spark.sort.DaytonaPartitionerSkew =>
+        assert(numRecords * 2 <= pointers.length)
+        p.setKeys()
+
+        while (i < numRecords) {
+          val pid = p.getPartitionSpecialized(pointers(i * 2), pointers(i * 2 + 1))
+          if (pid != prevPid) {
+
+            if (pid > prevPid + 1) {
+              val sizePerBucket = offsetWithinPartition / (pid - prevPid)
+              var left = offsetWithinPartition
+              var j = prevPid
+              while (j < pid - 1) {
+                partitionLengths(j) = sizePerBucket
+                left -= sizePerBucket
+                j += 1
+              }
+              partitionLengths(j) = left
+            } else {
+              // This is a new pid. update the index.
+              partitionLengths(prevPid) = offsetWithinPartition
+            }
+            writeMetrics.shuffleBytesWritten += offsetWithinPartition
+            offsetWithinPartition = 0L
+            prevPid = pid
           }
           val addr = baseAddress + (pointers(i * 2 + 1) & 0xFFFFFFFFL) * 100
           UNSAFE.copyMemory(null, addr, buf, BYTE_ARRAY_BASE_OFFSET, 100)
@@ -117,12 +151,12 @@ private[spark] class SortShuffleWriter[K, V, C](
 
         while (i < numRecords) {
           val pid = p.getPartitionSpecialized(pointers(i))
-          if (pid != lastPid) {
+          if (pid != prevPid) {
             // This is a new pid. update the index.
-            partitionLengths(lastPid) = offsetWithinPartition
+            partitionLengths(prevPid) = offsetWithinPartition
             writeMetrics.shuffleBytesWritten += offsetWithinPartition
             offsetWithinPartition = 0L
-            lastPid = pid
+            prevPid = pid
           }
 
           val addr = pointers(i)
@@ -141,16 +175,16 @@ private[spark] class SortShuffleWriter[K, V, C](
 
         while (i < numRecords) {
           val pid = p.getPartitionSpecialized(pointers(i))
-          if (pid != lastPid) {
+          if (pid != prevPid) {
             // This is a new pid. update the index.
             compressedOut.flush()
             compressedOut.close()
 
             val currentFileLen = outputFile.length()
-            partitionLengths(lastPid) = currentFileLen - lastFileLen
+            partitionLengths(prevPid) = currentFileLen - lastFileLen
             lastFileLen = currentFileLen
-            writeMetrics.shuffleBytesWritten += partitionLengths(lastPid)
-            lastPid = pid
+            writeMetrics.shuffleBytesWritten += partitionLengths(prevPid)
+            prevPid = pid
 
             val out1 = new BufferedOutputStream(new FileOutputStream(outputFile, true), 128 * 1024)
             compressedOut = codec.compressedOutputStream(out1)
@@ -166,8 +200,8 @@ private[spark] class SortShuffleWriter[K, V, C](
         compressedOut.flush()
         compressedOut.close()
         val currentFileLen = outputFile.length()
-        partitionLengths(lastPid) = currentFileLen - lastFileLen
-        writeMetrics.shuffleBytesWritten += partitionLengths(lastPid)
+        partitionLengths(prevPid) = currentFileLen - lastFileLen
+        writeMetrics.shuffleBytesWritten += partitionLengths(prevPid)
 
       case _ =>
         throw new RuntimeException("Unknown partitioner type " + dep.partitioner)
@@ -180,14 +214,33 @@ private[spark] class SortShuffleWriter[K, V, C](
 
       //SortShuffleWriter.sem.release()
       writeMetrics.shuffleBytesWritten += offsetWithinPartition
-      partitionLengths(lastPid) = offsetWithinPartition
 
-      if (lastPid < dep.partitioner.numPartitions - 1) {
-        var i = lastPid
-        while (i < dep.partitioner.numPartitions - 1) {
-          partitionLengths(i) = 0
-          i += 1
-        }
+
+      dep.partitioner match {
+        case p: org.apache.spark.sort.DaytonaPartitionerSkew =>
+
+          var left = offsetWithinPartition
+          val sizePerBucket = offsetWithinPartition / (dep.partitioner.numPartitions - prevPid)
+          var j = prevPid
+          while (j < dep.partitioner.numPartitions - 1) {
+            partitionLengths(j) = sizePerBucket
+            left -= sizePerBucket
+            j += 1
+          }
+          partitionLengths(j) = left
+
+          println("index is " + partitionLengths.toSeq)
+
+        case _ =>
+          partitionLengths(prevPid) = offsetWithinPartition
+
+          if (prevPid < dep.partitioner.numPartitions - 1) {
+            var i = prevPid
+            while (i < dep.partitioner.numPartitions - 1) {
+              partitionLengths(i) = 0
+              i += 1
+            }
+          }
       }
     }
 
