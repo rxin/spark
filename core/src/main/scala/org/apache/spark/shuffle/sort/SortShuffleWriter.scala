@@ -121,7 +121,7 @@ private[spark] class SortShuffleWriter[K, V, C](
           if (pid != prevPid) {
 
             if (pid > prevPid + 1) {
-              val sizePerBucket = offsetWithinPartition / (pid - prevPid)
+              val sizePerBucket = (offsetWithinPartition / (pid - prevPid)) / 100 * 100
               var left = offsetWithinPartition
               var j = prevPid
               while (j < pid - 1) {
@@ -220,7 +220,7 @@ private[spark] class SortShuffleWriter[K, V, C](
         case p: org.apache.spark.sort.DaytonaPartitionerSkew =>
 
           var left = offsetWithinPartition
-          val sizePerBucket = offsetWithinPartition / (dep.partitioner.numPartitions - prevPid)
+          val sizePerBucket = (offsetWithinPartition / (dep.partitioner.numPartitions - prevPid)) / 100 * 100
           var j = prevPid
           while (j < dep.partitioner.numPartitions - 1) {
             partitionLengths(j) = sizePerBucket
