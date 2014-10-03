@@ -160,7 +160,7 @@ final class ShuffleBlockFetcherIterator(
         }
 
         override def onBlockFetchFailure(blockId: BlockId, e: Throwable): Unit = {
-          logError(s"Failed to get block(s) from ${req.address.host}:${req.address.port}", e)
+          logError(s"Failed to get block $blockId from ${req.address.host}:${req.address.port}", e)
           results.put(new FetchResult(blockId, -1, null))
         }
       }
