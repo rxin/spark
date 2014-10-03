@@ -46,7 +46,7 @@ object SortUtils {
     /**
      * Each chunk should be 512MB
      */
-    val CHUNK_SIZE = 1024L * 1000 * 1000
+    val CHUNK_SIZE = 1400L * 1000 * 1000
     val chunkBegin = new Array[Long](32)
     val chunkEnds = new Array[Long](32)
     var currentNumChunks = 0
