@@ -324,7 +324,10 @@ object DaytonaSort extends Logging {
             is.seek(sampleLocs(sampleCount) * 100)
             // Read the first 10 byte, and save that.
             val buf = new Array[Byte](10)
-            val read0 = is.read(buf)
+            var read0 = is.read(buf)
+            if (read0 < 10) {
+              read0 += is.read(buf, read0, 10 - read0)
+            }
             assert(read0 == 10, s"read $read0 bytes instead of 10 bytes, " +
               s"sampleCount $sampleCount, skip $skip")
             samples(sampleCount) = buf
