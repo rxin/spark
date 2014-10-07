@@ -111,6 +111,8 @@ final class FileSegmentManagedBuffer(val file: File, val offset: Long, val lengt
 
   private[network] override def convertToNetty(): AnyRef = {
     new LazyFileRegion(file, offset, length)
+    //val fileChannel = new FileInputStream(file).getChannel
+    //new DefaultFileRegion(fileChannel, offset, length)
   }
 
   // Content of file segments are not in-memory, so no need to reference count.

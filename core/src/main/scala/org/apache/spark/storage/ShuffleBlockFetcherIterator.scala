@@ -205,7 +205,7 @@ final class ShuffleBlockFetcherIterator(
             // Add this FetchRequest
             val a = new FetchRequest(address, curBlocks)
             remoteRequests += a
-            logInfo(s"Creating fetch request of $curRequestSize (${a.size}) with ${curBlocks.size} blocks at $address")
+            logDebug(s"Creating fetch request of $curRequestSize (${a.size}) with ${curBlocks.size} blocks at $address")
             curBlocks = new ArrayBuffer[(BlockId, Long)]
             curRequestSize = 0
           }
