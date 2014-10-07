@@ -180,7 +180,6 @@ final class ServerResponseEncoder extends MessageToMessageEncoder[ServerResponse
           case e: Exception =>
             // Re-encode this message as BlockFetchFailure.
             logError(s"Error opening block $blockId for client ${ctx.channel.remoteAddress}", e)
-            Thread.sleep(3000 * 1000)
             encode(ctx, new BlockFetchFailure(blockId, e.getMessage), out)
             return
         }
