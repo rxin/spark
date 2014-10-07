@@ -32,7 +32,7 @@ class NettyConfig(conf: SparkConf) {
   private[netty] val ioMode = conf.get("spark.shuffle.io.mode", "nio").toLowerCase
 
   /** Connect timeout in secs. Default 60 secs. */
-  private[netty] val connectTimeoutMs = conf.getInt("spark.shuffle.io.connectionTimeout", 60) * 1000
+  private[netty] val connectTimeoutMs = conf.getInt("spark.shuffle.io.connectionTimeout", 180) * 1000
 
   /**
    * Percentage of the desired amount of time spent for I/O in the child event loops.

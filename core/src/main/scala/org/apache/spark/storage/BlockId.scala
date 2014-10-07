@@ -61,12 +61,12 @@ case class RDDBlockId(rddId: Int, splitIndex: Int) extends BlockId {
 case class ShuffleBlockId(shuffleId: Int, mapId: Int, reduceId: Int) extends BlockId {
   def name = "shuffle_" + shuffleId + "_" + mapId + "_" + reduceId
 
-  override def encodedLength = 1 + 1 + 4 + 4
+  override def encodedLength = 1 + 1 + 2 + 2
   override def encode(buf: io.netty.buffer.ByteBuf): Unit = {
     buf.writeByte(1)
     buf.writeByte(shuffleId)
-    buf.writeInt(mapId)
-    buf.writeInt(reduceId)
+    buf.writeShort(mapId)
+    buf.writeShort(reduceId)
   }
 }
 
