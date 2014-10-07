@@ -43,7 +43,7 @@ object PBSort extends Logging {
 
       //networkSemaphore.acquire()
 
-      val codec = new org.apache.spark.io.SnappyCompressionCodec(new SparkConf)
+      val codec = new org.apache.spark.io.LZFCompressionCodec(new SparkConf)
       var memoryAddress = sortBuffer.address
       val buf100 = new Array[Byte](100)
 

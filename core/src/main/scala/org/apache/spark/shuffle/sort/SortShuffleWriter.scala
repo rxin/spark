@@ -88,7 +88,7 @@ private[spark] class SortShuffleWriter[K, V, C](
     val out = new BufferedOutputStream(new FileOutputStream(outputFile), 128 * 1024)
     val buf = new Array[Byte](100)
 
-    val codec = new org.apache.spark.io.SnappyCompressionCodec(new SparkConf)
+    val codec = new org.apache.spark.io.LZFCompressionCodec(new SparkConf)
 
     dep.partitioner match {
       case p: org.apache.spark.sort.DaytonaPartitioner =>
