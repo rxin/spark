@@ -25,7 +25,7 @@ object IndySort extends Logging {
    * A semaphore to control concurrency when reading from disks. Right now we allow only eight
    * concurrent tasks to read. The rest will block.
    */
-  private[this] val diskSemaphore = new Semaphore(8)
+  private[this] val diskSemaphore = new Semaphore(16)
 
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
