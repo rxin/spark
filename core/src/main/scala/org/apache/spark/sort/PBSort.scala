@@ -110,6 +110,8 @@ object PBSort extends Logging {
     }.reduce(_ + _)
 
     println("total number of records: " + recordsAfterSort)
+
+    Thread.sleep(100 * 1000)
   }
 
   def buildLongPointers(sortBuffer: SortBuffer, bufferSize: Long) {

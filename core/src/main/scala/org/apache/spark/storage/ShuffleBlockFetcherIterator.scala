@@ -205,7 +205,7 @@ final class ShuffleBlockFetcherIterator(
             // Add this FetchRequest
             remoteRequests += new FetchRequest(address, curBlocks)
             curBlocks = new ArrayBuffer[(BlockId, Long)]
-            logInfo(s"Creating fetch request of $curRequestSize at $address")
+            logInfo(s"Creating fetch request of $curRequestSize with ${curBlocks.size} blocks at $address")
             curRequestSize = 0
           }
         }
