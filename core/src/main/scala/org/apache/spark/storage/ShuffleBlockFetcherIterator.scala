@@ -203,8 +203,9 @@ final class ShuffleBlockFetcherIterator(
           }
           if (curRequestSize >= targetRequestSize) {
             // Add this FetchRequest
-            logInfo(s"Creating fetch request of $curRequestSize with ${curBlocks.size} blocks at $address")
-            remoteRequests += new FetchRequest(address, curBlocks)
+            val a = new FetchRequest(address, curBlocks)
+            remoteRequests += a
+            logInfo(s"Creating fetch request of $curRequestSize (${a.size}) with ${curBlocks.size} blocks at $address")
             curBlocks = new ArrayBuffer[(BlockId, Long)]
             curRequestSize = 0
           }
