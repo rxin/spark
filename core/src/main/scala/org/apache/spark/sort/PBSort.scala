@@ -41,9 +41,9 @@ object PBSort extends Logging {
       assert(sortBuffer != null)
       var numShuffleBlocks = 0
 
-      networkSemaphore.acquire()
+      //networkSemaphore.acquire()
 
-      val codec = new org.apache.spark.io.LZFCompressionCodec(new SparkConf)
+      val codec = new org.apache.spark.io.SnappyCompressionCodec(new SparkConf)
       var memoryAddress = sortBuffer.address
       val buf100 = new Array[Byte](100)
 
@@ -94,7 +94,7 @@ object PBSort extends Logging {
         numShuffleBlocks += 1
       }
 
-      networkSemaphore.release()
+      //networkSemaphore.release()
 
       assert((memoryAddress - sortBuffer.address) % 100 == 0,
         s"read ${memoryAddress - sortBuffer.address} bytes")
