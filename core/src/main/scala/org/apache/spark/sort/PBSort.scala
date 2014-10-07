@@ -9,6 +9,7 @@ import org.apache.spark.io.LZFCompressionCodec
 import org.apache.spark.sort.SortUtils._
 import org.apache.spark.network.{ManagedBuffer, FileSegmentManagedBuffer, NettyManagedBuffer}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
+import org.apache.spark.util.random.XORShiftRandom
 
 
 /**
@@ -136,7 +137,21 @@ object PBSort extends Logging {
     val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
 
     sc.parallelize(1 to numParts, numParts).mapPartitionsWithIndex { (part, iter) =>
-      val iter = datagen.SortDataGenerator.generatePartition(part, recordsPerPartition.toInt)
+      //val iter = datagen.SortDataGenerator.generatePartition(part, recordsPerPartition.toInt)
+
+      val iter = new Iterator[Array[Byte]] {
+        private[this] val buf = new Array[Byte](100)
+        private[this] val rand = new XORShiftRandom(part)
+        private[this] var i = 0
+        private[this] val recordsPerPartition0 = recordsPerPartition
+
+        override def hasNext: Boolean = i < recordsPerPartition0
+        override def next(): Array[Byte] = {
+          rand.nextBytes(buf)
+          i += 1
+          buf
+        }
+      }
 
       if (sortBuffers.get == null) {
         // Allocate 10% overhead since after shuffle the partitions can get slightly uneven.
