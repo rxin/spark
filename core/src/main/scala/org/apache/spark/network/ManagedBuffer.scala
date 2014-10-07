@@ -25,6 +25,7 @@ import java.nio.channels.FileChannel.MapMode
 import com.google.common.io.ByteStreams
 import io.netty.buffer.{Unpooled, ByteBufInputStream, ByteBuf}
 import io.netty.channel.DefaultFileRegion
+import org.apache.spark.network.netty.LazyFileRegion
 
 import org.apache.spark.util.ByteBufferInputStream
 
@@ -109,8 +110,7 @@ final class FileSegmentManagedBuffer(val file: File, val offset: Long, val lengt
   }
 
   private[network] override def convertToNetty(): AnyRef = {
-    val fileChannel = new FileInputStream(file).getChannel
-    new DefaultFileRegion(fileChannel, offset, length)
+    new LazyFileRegion(file, offset, length)
   }
 
   // Content of file segments are not in-memory, so no need to reference count.
