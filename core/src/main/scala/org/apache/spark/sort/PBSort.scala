@@ -18,7 +18,7 @@ import org.apache.spark.rdd.{ShuffledRDD, RDD}
  */
 object PBSort extends Logging {
 
-  private[this] val diskSemaphore = new java.util.concurrent.Semaphore(16)
+  private[this] val networkSemaphore = new java.util.concurrent.Semaphore(16)
 
   def main(args: Array[String]): Unit = {
     val sizeInGB = args(0).toInt
@@ -40,6 +40,8 @@ object PBSort extends Logging {
       val sortBuffer = sortBuffers.get()
       assert(sortBuffer != null)
       var numShuffleBlocks = 0
+
+      networkSemaphore.acquire()
 
       val codec = new org.apache.spark.io.LZFCompressionCodec(new SparkConf)
       var memoryAddress = sortBuffer.address
@@ -92,6 +94,8 @@ object PBSort extends Logging {
         numShuffleBlocks += 1
       }
 
+      networkSemaphore.release()
+
       assert((memoryAddress - sortBuffer.address) % 100 == 0,
         s"read ${memoryAddress - sortBuffer.address} bytes")
 
@@ -143,8 +147,6 @@ object PBSort extends Logging {
       val sortBuffer = sortBuffers.get()
       var addr: Long = sortBuffer.address
 
-      diskSemaphore.acquire()
-
       {
         val startTime = System.currentTimeMillis
         while (iter.hasNext) {
@@ -155,7 +157,6 @@ object PBSort extends Logging {
         val timeTaken = System.currentTimeMillis - startTime
         logInfo(s"XXX creating $recordsPerPartition records took $timeTaken ms")
       }
-      diskSemaphore.release()
       assert(addr - sortBuffer.address == 100L * recordsPerPartition)
 
       buildLongPointers(sortBuffer, addr - sortBuffer.address)
