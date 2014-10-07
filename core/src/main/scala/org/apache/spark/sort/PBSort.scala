@@ -140,7 +140,8 @@ object PBSort extends Logging {
       //val iter = datagen.SortDataGenerator.generatePartition(part, recordsPerPartition.toInt)
 
       val iter = new Iterator[Array[Byte]] {
-        private[this] val buf = new Array[Byte](100)
+        private[this] val buf = new Array[Byte](40)
+        private[this] val ret = new Array[Byte](100)
         private[this] val rand = new XORShiftRandom(part)
         private[this] var i = 0
         private[this] val recordsPerPartition0 = recordsPerPartition
@@ -149,7 +150,8 @@ object PBSort extends Logging {
         override def next(): Array[Byte] = {
           rand.nextBytes(buf)
           i += 1
-          buf
+          UNSAFE.copyMemory(buf, BYTE_ARRAY_BASE_OFFSET, ret, BYTE_ARRAY_BASE_OFFSET, 40)
+          ret
         }
       }
 
