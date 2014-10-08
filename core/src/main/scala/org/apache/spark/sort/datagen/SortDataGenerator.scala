@@ -104,12 +104,18 @@ object SortDataGenerator {
     val hosts = Utils.readSlaves()
     val numTasks = numParts * replica
 
-    val replicatedHosts = new Array[String](numTasks)
-    for (replicaIndex <- 0 until replica) {
-      for (i <- 0 until numParts) {
-        replicatedHosts(replicaIndex * numParts + i) = hosts((i + replicaIndex) % hosts.length)
-      }
+    val rand = new java.util.Random(17)
+
+    val replicatedHosts = Array.tabulate[String](numTasks) { i =>
+      hosts(rand.nextInt(hosts.length))
     }
+
+//    val replicatedHosts = new Array[String](numTasks)
+//    for (replicaIndex <- 0 until replica) {
+//      for (i <- 0 until numParts) {
+//        replicatedHosts(replicaIndex * numParts + i) = hosts((i + replicaIndex) % hosts.length)
+//      }
+//    }
 
     val output = new NodeLocalRDD[(String, Int, String, Unsigned16)](sc, numTasks, replicatedHosts) {
       override def compute(split: Partition, context: TaskContext) = {

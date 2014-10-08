@@ -228,10 +228,21 @@ object IndySort extends Logging {
     val totalRecords = sizeInBytes / 100
     val recordsPerPartition = math.ceil(totalRecords.toDouble / numParts).toLong
 
+    val rand = new java.util.Random(17)
+
     val hosts = Utils.readSlaves()
+//    val replicatedHosts = Array.tabulate[Seq[String]](hosts.length) { i =>
+//      Seq.tabulate[String](replica) { replicaIndex =>
+//        hosts((i + replicaIndex) % hosts.length)
+//      }
+//    }
+    val replicatedHosts0 = Array.tabulate[String](numParts * replica) { i =>
+      hosts(rand.nextInt(hosts.length))
+    }
+
     val replicatedHosts = Array.tabulate[Seq[String]](hosts.length) { i =>
       Seq.tabulate[String](replica) { replicaIndex =>
-        hosts((i + replicaIndex) % hosts.length)
+        replicatedHosts0(i + replicaIndex * numParts)
       }
     }
 
