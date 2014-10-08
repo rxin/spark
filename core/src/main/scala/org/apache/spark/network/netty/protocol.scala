@@ -202,9 +202,9 @@ final class ServerResponseEncoder extends MessageToMessageEncoder[ServerResponse
         assert(header.writableBytes() == 0)
         out.add(header)
 
-        if (data.size > 0) {
+        //if (data.size > 0) {
           out.add(body)
-        }
+        //}
 
       case BlockFetchFailure(blockId, error) =>
         val frameLength = 8 + 1 + blockId.encodedLength + error.length
