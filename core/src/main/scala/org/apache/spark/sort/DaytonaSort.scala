@@ -294,7 +294,7 @@ object DaytonaSort extends Logging {
     }
     assert(i == numParts, "total file found: " + i)
 
-    replicatedHosts.zipWithIndex.foreach { case (a, i) => println(s"$i: $a") }
+    //replicatedHosts.zipWithIndex.foreach { case (a, i) => println(s"$i: $a") }
 
     val timeTaken = System.currentTimeMillis() - startTime
     logInfo(s"XXX took $timeTaken ms to get file metadata")
@@ -366,7 +366,7 @@ object DaytonaSort extends Logging {
         rangeBounds(i * 2) = Longs.fromBytes(0, k(0), k(1), k(2), k(3), k(4), k(5), k(6))
         rangeBounds(i * 2 + 1) = Longs.fromBytes(0, k(7), k(8), k(9), 0, 0, 0, 0)
 
-        println(s"range bound $i : ${k.toSeq.map(x => if (x<0) 256 + x else x)}")
+        //println(s"range bound $i : ${k.toSeq.map(x => if (x<0) 256 + x else x)}")
 //        if ( i > 0) {
 //          println(s"range $i: ${rangeBounds(i * 2) - rangeBounds(i * 2 - 2)}")
 //        } else {
