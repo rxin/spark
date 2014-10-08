@@ -240,7 +240,7 @@ object IndySort extends Logging {
       hosts(rand.nextInt(hosts.length))
     }
 
-    val replicatedHosts = Array.tabulate[Seq[String]](hosts.length) { i =>
+    val replicatedHosts = Array.tabulate[Seq[String]](numParts) { i =>
       Seq.tabulate[String](replica) { replicaIndex =>
         replicatedHosts0(i + replicaIndex * numParts)
       }

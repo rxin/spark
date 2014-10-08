@@ -26,7 +26,7 @@ object DaytonaSort extends Logging {
    */
   private[this] val diskSemaphore = new Semaphore(8)
 
-  private[this] val networkSemaphore = new Semaphore(16)
+  private[this] val networkSemaphore = new Semaphore(8)
 
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
