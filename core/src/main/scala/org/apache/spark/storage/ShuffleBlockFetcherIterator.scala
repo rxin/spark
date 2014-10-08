@@ -171,7 +171,7 @@ final class ShuffleBlockFetcherIterator(
     // Make remote requests at most maxBytesInFlight / 5 in length; the reason to keep them
     // smaller than maxBytesInFlight is to allow multiple, parallel fetches from up to 5
     // nodes, rather than blocking on reading output from one node.
-    val targetRequestSize = math.max(maxBytesInFlight / 10, 1L)
+    val targetRequestSize = math.max(maxBytesInFlight / 20, 1L)
     logDebug("maxBytesInFlight: " + maxBytesInFlight + ", targetRequestSize: " + targetRequestSize)
 
     // Split local and remote blocks. Remote blocks are further split into FetchRequests of size

@@ -64,7 +64,7 @@ object IndySort extends Logging {
       {
         logInfo(s"trying to acquire semaphore for $outputFile")
         val startTime = System.currentTimeMillis
-        //diskSemaphore.acquire()
+        diskSemaphore.acquire()
         logInfo(s"acquired semaphore for $outputFile took " + (System.currentTimeMillis - startTime) + " ms")
       }
 
@@ -104,7 +104,7 @@ object IndySort extends Logging {
         numShuffleBlocks += 1
       }
 
-      //diskSemaphore.release()
+      diskSemaphore.release()
 
       val timeTaken = System.currentTimeMillis() - startTime
       logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
@@ -131,7 +131,7 @@ object IndySort extends Logging {
         logInfo(s"XXX Reduce: writing $numRecords records started $outputFile")
         println(s"XXX Reduce: writing $numRecords records started $outputFile")
 
-        writeSemaphore.acquire()
+        //writeSemaphore.acquire()
 
         val fout = new FileOutputStream(outputFile)
         val fd = fout.getFD
@@ -151,7 +151,7 @@ object IndySort extends Logging {
         logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
         println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
 
-        writeSemaphore.release()
+        //writeSemaphore.release()
 
         i.toLong
       }
