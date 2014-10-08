@@ -26,6 +26,8 @@ object DaytonaSort extends Logging {
    */
   private[this] val diskSemaphore = new Semaphore(8)
 
+  private[this] val networkSemaphore = new Semaphore(16)
+
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
       println("DaytonaSort [sizeInGB] [numParts] [replica] [input-dir]")
@@ -71,7 +73,7 @@ object DaytonaSort extends Logging {
       {
         logInfo(s"trying to acquire semaphore for $outputFile")
         val startTime = System.currentTimeMillis
-        diskSemaphore.acquire()
+        networkSemaphore.acquire()
         logInfo(s"acquired semaphore for $outputFile took " + (System.currentTimeMillis - startTime) + " ms")
       }
 
@@ -163,7 +165,7 @@ object DaytonaSort extends Logging {
 
         numShuffleBlocks += 1
       }
-      diskSemaphore.release()
+      networkSemaphore.release()
 
       sortBuffer.markLastChunkUsage(offsetInChunk)
 
@@ -180,7 +182,6 @@ object DaytonaSort extends Logging {
         val timeTaken = System.currentTimeMillis - startTime
         logInfo(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
         println(s"XXX Reduce: Sorting $numRecords records took $timeTaken ms $outputFile")
-        scala.Console.flush()
       }
 
       val keys = sortBuffer.keys
@@ -260,7 +261,6 @@ object DaytonaSort extends Logging {
     val timeTaken = System.currentTimeMillis() - startTime
     logInfo(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
     println(s"XXX finished reading file $inputFile ($read bytes), took $timeTaken ms")
-    scala.Console.flush()
     assert(read == fileSize)
   }
 
@@ -409,7 +409,6 @@ object DaytonaSort extends Logging {
           val timeTaken = System.currentTimeMillis - startTime
           logInfo(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
           println(s"XXX Sorting $recordsPerPartition records took $timeTaken ms")
-          scala.Console.flush()
         }
 
         Iterator((recordsPerPartition, sortBuffer.keys))
