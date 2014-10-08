@@ -26,7 +26,7 @@ object IndySort extends Logging {
    * concurrent tasks to read. The rest will block.
    */
   private[this] val diskSemaphore = new Semaphore(8)
-  private[this] val networkSemaphore = new Semaphore(8)
+  private[this] val networkSemaphore = new Semaphore(16)
 
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
