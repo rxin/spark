@@ -41,7 +41,7 @@ private[netty] class BlockServerHandler(dataProvider: BlockDataManager)
     request match {
       case BlockFetchRequest(blockIds) =>
         blockIds.foreach(processBlockRequest(ctx, _))
-        ctx.flush()
+        //ctx.flush()
       case BlockUploadRequest(blockId, data) =>
         // TODO(rxin): handle upload.
     }
@@ -78,7 +78,7 @@ private[netty] class BlockServerHandler(dataProvider: BlockDataManager)
         return
     }
 
-    ctx.write(new BlockFetchSuccess(blockId, buf)).addListener(
+    ctx.writeAndFlush(new BlockFetchSuccess(blockId, buf)).addListener(
       new ChannelFutureListener {
         override def operationComplete(future: ChannelFuture): Unit = {
           if (future.isSuccess) {
