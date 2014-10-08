@@ -26,6 +26,7 @@ object IndySort extends Logging {
    * concurrent tasks to read. The rest will block.
    */
   private[this] val diskSemaphore = new Semaphore(16)
+  private[this] val writeSemaphore = new Semaphore(8)
 
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
@@ -129,6 +130,9 @@ object IndySort extends Logging {
         }
         logInfo(s"XXX Reduce: writing $numRecords records started $outputFile")
         println(s"XXX Reduce: writing $numRecords records started $outputFile")
+
+        writeSemaphore.acquire()
+
         val fout = new FileOutputStream(outputFile)
         val fd = fout.getFD
         val os = new BufferedOutputStream(fout, 4 * 1024 * 1024)
@@ -146,6 +150,8 @@ object IndySort extends Logging {
         val timeTaken = System.currentTimeMillis - startTime
         logInfo(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
         println(s"XXX Reduce: writing $numRecords records took $timeTaken ms $outputFile")
+
+        writeSemaphore.release()
 
         i.toLong
       }

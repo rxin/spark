@@ -134,7 +134,7 @@ final class ShuffleBlockFetcherIterator(
   }
 
   private[this] def sendRequest(req: FetchRequest) {
-    logInfo("Sending request for %d blocks (%s) from %s".format(
+    logDebug("Sending request for %d blocks (%s) from %s".format(
       req.blocks.size, Utils.bytesToString(req.size), req.address.hostPort))
     bytesInFlight += req.size
 
@@ -216,7 +216,7 @@ final class ShuffleBlockFetcherIterator(
         }
       }
     }
-    logInfo(s"Getting $numBlocksToFetch non-empty blocks out of $totalBlocks blocks")
+    logDebug(s"Getting $numBlocksToFetch non-empty blocks out of $totalBlocks blocks")
     remoteRequests
   }
 
@@ -260,10 +260,10 @@ final class ShuffleBlockFetcherIterator(
       sendRequest(fetchRequests.dequeue())
       i += 1
     }
-    logInfo(s"starting $i concurrent fetches")
+    logDebug(s"starting $i concurrent fetches")
 
     val numFetches = remoteRequests.size - fetchRequests.size
-    logInfo("Started " + numFetches + " remote fetches in" + Utils.getUsedTimeMs(startTime))
+    logDebug("Started " + numFetches + " remote fetches in" + Utils.getUsedTimeMs(startTime))
 
     // Get Local Blocks
     fetchLocalBlocks()
