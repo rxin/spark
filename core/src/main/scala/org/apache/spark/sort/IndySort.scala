@@ -26,7 +26,7 @@ object IndySort extends Logging {
    * concurrent tasks to read. The rest will block.
    */
   private[this] val diskSemaphore = new Semaphore(16)
-  private[this] val writeSemaphore = new Semaphore(8)
+  private[this] val networkSemaphore = new Semaphore(8)
 
   def main(args: Array[String]): Unit = {
     if (args.length < 4) {
@@ -64,7 +64,7 @@ object IndySort extends Logging {
       {
         logInfo(s"trying to acquire semaphore for $outputFile")
         val startTime = System.currentTimeMillis
-        diskSemaphore.acquire()
+        networkSemaphore.acquire()
         logInfo(s"acquired semaphore for $outputFile took " + (System.currentTimeMillis - startTime) + " ms")
       }
 
@@ -104,7 +104,7 @@ object IndySort extends Logging {
         numShuffleBlocks += 1
       }
 
-      diskSemaphore.release()
+      networkSemaphore.release()
 
       val timeTaken = System.currentTimeMillis() - startTime
       logInfo(s"XXX Reduce: $timeTaken ms to fetch $numShuffleBlocks shuffle blocks ($offset bytes) $outputFile")
