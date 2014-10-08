@@ -114,30 +114,35 @@ private[spark] class Executor(
   private val timer = new java.util.Timer
   timer.schedule(new java.util.TimerTask {
     override def run(): Unit = {
-      val bm = env.blockManager
-      val peers = env.blockManager.master.getPeers(bm.blockManagerId, 0)
-      println("got peers " + peers)
-      val blocks = Seq.fill[BlockId](200)(BroadcastBlockId(100))
-      peers.foreach { peer =>
-        if (!peer.executorId.contains("driver")) {
-          env.blockTransferService.fetchBlocks(peer.host, peer.port, blocks,
-            new BlockFetchingListener {
-              /**
-               * Called once per successfully fetched block.
-               */
-              override def onBlockFetchSuccess(blockId: BlockId, data: ManagedBuffer): Unit = {
-                logInfo("got block " + blockId)
-                data.release()
-              }
+      try {
+        val bm = env.blockManager
+        val peers = env.blockManager.master.getPeers(bm.blockManagerId, 0)
+        println("got peers " + peers)
+        val blocks = Seq.fill[BlockId](200)(BroadcastBlockId(100))
+        peers.foreach { peer =>
+          if (!peer.executorId.contains("driver")) {
+            env.blockTransferService.fetchBlocks(peer.host, peer.port, blocks,
+              new BlockFetchingListener {
+                /**
+                 * Called once per successfully fetched block.
+                 */
+                override def onBlockFetchSuccess(blockId: BlockId, data: ManagedBuffer): Unit = {
+                  logInfo("got block " + blockId)
+                  data.release()
+                }
 
-              /**
-               * Called at least once per block upon failures.
-               */
-              override def onBlockFetchFailure(blockId: BlockId, exception: Throwable): Unit = {
-                // Do nothing ...
-              }
-            })
+                /**
+                 * Called at least once per block upon failures.
+                 */
+                override def onBlockFetchFailure(blockId: BlockId, exception: Throwable): Unit = {
+                  // Do nothing ...
+                }
+              })
+          }
         }
+      } catch {
+        case e: Exception =>
+          e.printStackTrace()
       }
     }
   }, 3 * 60 * 1000)
