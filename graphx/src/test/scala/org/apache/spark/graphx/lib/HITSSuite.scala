@@ -83,12 +83,12 @@ class HITSSuite extends FunSuite with LocalSparkContext {
       val hits1 = starGraph.staticHITS(numIter = 1).vertices.cache()
       val hits2 = starGraph.staticHITS(numIter = 2).vertices.cache()
 
-      val correct = starGraph.mapVertices ( (id,attr) =>
+      val referenceHits = starGraph.mapVertices ( (id,attr) =>
           if (id == 0) (0.0, 1.0)
           else (0.0625, 0.0)
       ).vertices.cache()
 
-      assert(compareHits(correct, hits1) < errorTol)
+      assert(compareHits(referenceHits, hits1) < errorTol)
       assert(compareHits(hits1, hits2) < errorTol)
 
     }
@@ -104,11 +104,11 @@ class HITSSuite extends FunSuite with LocalSparkContext {
       val errorTol = 1.0e-5
       val gridGraph = GraphGenerators.gridGraph(sc, rows, cols)
 
-      val staticRanks = gridGraph.staticHITS(numIter).vertices
+      val staticHits = gridGraph.staticHITS(numIter).vertices
 
-      val correct = VertexRDD(sc.parallelize(GridHITS(rows, cols, numIter)))
+      val referenceHits = VertexRDD(sc.parallelize(GridHITS(rows, cols, numIter)))
 
-      assert(compareHits(correct, staticRanks) < errorTol)
+      assert(compareHits(referenceHits, staticHits) < errorTol)
     }
   } // end of Grid HITS
 
@@ -121,15 +121,15 @@ class HITSSuite extends FunSuite with LocalSparkContext {
       val numIter = 10
       val errorTol = 1.0e-5
 
-      val staticRanks = chain.staticHITS(numIter).vertices
+      val staticHits = chain.staticHITS(numIter).vertices
 
-      val correct = chain.mapVertices ( (id,attr) => id match {
+      val referenceHits = chain.mapVertices ( (id,attr) => id match {
           case 0 => (1/3.0, 0.0)
           case 9 => (0.0, 1/3.0)
           case _ => (1/3.0, 1/3.0)
       }).vertices
 
-      assert(compareHits(correct, staticRanks) < errorTol)
+      assert(compareHits(referenceHits, staticHits) < errorTol)
     }
   } // end of Chain HITS
 
@@ -141,11 +141,11 @@ class HITSSuite extends FunSuite with LocalSparkContext {
       val numIter = 25
       val errorTol = 1.0e-5
 
-      val staticRanks = graph.staticHITS(numIter).vertices.cache
+      val staticHits = graph.staticHITS(numIter).vertices.cache
 
-      val correct = graph.mapVertices ( (id,attr) => (0.0, 0.0) ).vertices
+      val referenceHits = graph.mapVertices ( (id,attr) => (0.0, 0.0) ).vertices
 
-      assert(compareHits(correct, staticRanks) < errorTol)
+      assert(compareHits(referenceHits, staticHits) < errorTol)
     }
   } // end of Empty HITS
 
@@ -158,15 +158,15 @@ class HITSSuite extends FunSuite with LocalSparkContext {
       val numIter = 15
       val errorTol = 1.0e-5
 
-      val staticRanks = graph.staticHITS(numIter).vertices.cache
+      val staticHits = graph.staticHITS(numIter).vertices.cache
 
-      val correct = graph.mapVertices ( (id,attr) => id match {
+      val referenceHits = graph.mapVertices ( (id,attr) => id match {
           case 60 => (0.125, 0.0)
           case 64 => (0.0, 0.125) 
           case _ => (0.125, 0.125)
       }).vertices
 
-      assert(compareHits(correct, staticRanks) < errorTol)
+      assert(compareHits(referenceHits, staticHits) < errorTol)
     }
   } // end of Cycle Forest HITS
 

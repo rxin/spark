@@ -94,7 +94,7 @@ object HITS extends Logging {
 
       // Forget the old auth values, update to the new values, and unpersist the update RDD.
       // Uses outerJoinVertices since missing data should be set to be 0.
-      // Requires a shuffle for broadcasting updated ranks to the edge partitions.
+      // Requires a shuffle for broadcasting updated scores to the edge partitions.
       authGraph.unpersistVertices(false)
       authGraph = graph.outerJoinVertices(authUpdates) {
         (id, auth, msgSum) => msgSum.getOrElse(0.0)/authScale
