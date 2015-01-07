@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.api.java
 
+import org.apache.spark.sql.types.MetadataBuilder
 import org.scalatest.FunSuite
 
 import org.apache.spark.sql.{DataType => SDataType, StructField => SStructField, StructType => SStructType}
@@ -25,8 +26,8 @@ import org.apache.spark.sql.types.util.DataTypeConversions._
 class ScalaSideDataTypeConversionSuite extends FunSuite {
 
   def checkDataType(scalaDataType: SDataType) {
-    val javaDataType = asJavaDataType(scalaDataType)
-    val actual = asScalaDataType(javaDataType)
+    val javaDataType = toPublicType(scalaDataType)
+    val actual = toCatalystType(javaDataType)
     assert(scalaDataType === actual, s"Converted data type ${actual} " +
       s"does not equal the expected data type ${scalaDataType}")
   }

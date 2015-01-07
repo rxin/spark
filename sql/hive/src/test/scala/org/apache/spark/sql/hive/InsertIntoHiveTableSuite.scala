@@ -83,7 +83,7 @@ class InsertIntoHiveTableSuite extends QueryTest {
       (1 to 100).map(i => Row(scala.collection.mutable.HashMap(s"key$i" -> s"value$i"))))
     val schemaRDD = applySchema(rowRDD, schema)
     schemaRDD.registerTempTable("tableWithMapValue")
-    sql("CREATE TABLE hiveTableWithMapValue(m MAP <STRING, STRING>)")
+    sql("CREATE TABLE hiveTableWithMapValue(m MAP <StringType, StringType>)")
     sql("INSERT OVERWRITE TABLE hiveTableWithMapValue SELECT m FROM tableWithMapValue")
 
     checkAnswer(
@@ -128,7 +128,7 @@ class InsertIntoHiveTableSuite extends QueryTest {
     val rowRDD = TestHive.sparkContext.parallelize((1 to 100).map(i => Row(Seq(s"value$i"))))
     val schemaRDD = applySchema(rowRDD, schema)
     schemaRDD.registerTempTable("tableWithArrayValue")
-    sql("CREATE TABLE hiveTableWithArrayValue(a Array <STRING>)")
+    sql("CREATE TABLE hiveTableWithArrayValue(a Array <StringType>)")
     sql("INSERT OVERWRITE TABLE hiveTableWithArrayValue SELECT a FROM tableWithArrayValue")
 
     checkAnswer(
@@ -145,7 +145,7 @@ class InsertIntoHiveTableSuite extends QueryTest {
       (1 to 100).map(i => Row(Map(s"key$i" -> s"value$i"))))
     val schemaRDD = applySchema(rowRDD, schema)
     schemaRDD.registerTempTable("tableWithMapValue")
-    sql("CREATE TABLE hiveTableWithMapValue(m Map <STRING, STRING>)")
+    sql("CREATE TABLE hiveTableWithMapValue(m Map <StringType, StringType>)")
     sql("INSERT OVERWRITE TABLE hiveTableWithMapValue SELECT m FROM tableWithMapValue")
 
     checkAnswer(
@@ -162,7 +162,7 @@ class InsertIntoHiveTableSuite extends QueryTest {
       (1 to 100).map(i => Row(Row(s"value$i"))))
     val schemaRDD = applySchema(rowRDD, schema)
     schemaRDD.registerTempTable("tableWithStructValue")
-    sql("CREATE TABLE hiveTableWithStructValue(s Struct <f: STRING>)")
+    sql("CREATE TABLE hiveTableWithStructValue(s Struct <f: StringType>)")
     sql("INSERT OVERWRITE TABLE hiveTableWithStructValue SELECT s FROM tableWithStructValue")
 
     checkAnswer(

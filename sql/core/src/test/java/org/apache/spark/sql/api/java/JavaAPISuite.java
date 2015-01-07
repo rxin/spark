@@ -19,13 +19,10 @@ package org.apache.spark.sql.api.java;
 
 import java.io.Serializable;
 
-import org.apache.spark.sql.api.java.UDF1;
+import org.apache.spark.sql.types.DataType;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runners.Suite;
-import org.junit.runner.RunWith;
 
 import org.apache.spark.api.java.JavaSparkContext;
 

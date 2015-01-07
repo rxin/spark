@@ -23,6 +23,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DecimalType;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -95,7 +99,7 @@ public class JavaApplySchemaSuite implements Serializable {
     List<StructField> fields = new ArrayList<StructField>(2);
     fields.add(DataType.createStructField("name", DataType.StringType, false));
     fields.add(DataType.createStructField("age", DataType.IntegerType, false));
-    StructType schema = DataType.createStructType(fields);
+    StructType schema = DataTypes.createStructType(fields);
 
     JavaSchemaRDD schemaRDD = javaSqlCtx.applySchema(rowRDD, schema);
     schemaRDD.registerTempTable("people");

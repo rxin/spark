@@ -19,6 +19,8 @@ package org.apache.spark.sql.json
 
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.sources._
+import org.apache.spark.sql.types.util.DataTypeConversions
+
 
 private[sql] class DefaultSource extends RelationProvider {
   /** Returns a new base relation with the given parameters. */
@@ -39,11 +41,11 @@ private[sql] case class JSONRelation(fileName: String, samplingRatio: Double)(
   private def baseRDD = sqlContext.sparkContext.textFile(fileName)
 
   override val schema =
-    JsonRDD.inferSchema(
+    DataTypeConversions.toPublicType(JsonRDD.inferSchema(
       baseRDD,
       samplingRatio,
-      sqlContext.columnNameOfCorruptRecord)
+      sqlContext.columnNameOfCorruptRecord))
 
   override def buildScan() =
-    JsonRDD.jsonStringToRow(baseRDD, schema, sqlContext.columnNameOfCorruptRecord)
+    JsonRDD.jsonStringToRow(baseRDD, schema.toCatalyst, sqlContext.columnNameOfCorruptRecord)
 }

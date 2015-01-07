@@ -32,7 +32,8 @@ import org.json4s.jackson.JsonMethods._
  *
  * @param map an immutable map that stores the data
  */
-sealed class Metadata private[util] (private[util] val map: Map[String, Any]) extends Serializable {
+private[sql]
+class Metadata private[sql] (private[util] val map: Map[String, Any]) extends Serializable {
 
   /** Tests whether this Metadata contains a binding for a key. */
   def contains(key: String): Boolean = map.contains(key)
@@ -208,7 +209,7 @@ class MetadataBuilder {
   private val map: mutable.Map[String, Any] = mutable.Map.empty
 
   /** Returns the immutable version of this map.  Used for java interop. */
-  protected def getMap = map.toMap
+  protected def getMap: Map[String, Any] = map.toMap
 
   /** Include the content of an existing [[Metadata]] instance. */
   def withMetadata(metadata: Metadata): this.type = {

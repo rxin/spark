@@ -54,7 +54,6 @@ private[sql] trait UDFRegistration {
         | dataType: $stringDataType
       """.stripMargin)
 
-
     val dataType = parseDataType(stringDataType)
 
     def builder(e: Seq[Expression]) =

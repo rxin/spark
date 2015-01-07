@@ -76,8 +76,8 @@ class HiveQuerySuite extends HiveComparisonTest with BeforeAndAfter {
 
   createQueryTest("constant null testing",
     """SELECT
-      |IF(FALSE, CAST(NULL AS STRING), CAST(1 AS STRING)) AS COL1,
-      |IF(TRUE, CAST(NULL AS STRING), CAST(1 AS STRING)) AS COL2,
+      |IF(FALSE, CAST(NULL AS StringType), CAST(1 AS StringType)) AS COL1,
+      |IF(TRUE, CAST(NULL AS StringType), CAST(1 AS StringType)) AS COL2,
       |IF(FALSE, CAST(NULL AS INT), CAST(1 AS INT)) AS COL3,
       |IF(TRUE, CAST(NULL AS INT), CAST(1 AS INT)) AS COL4,
       |IF(FALSE, CAST(NULL AS DOUBLE), CAST(1 AS DOUBLE)) AS COL5,
@@ -471,7 +471,7 @@ class HiveQuerySuite extends HiveComparisonTest with BeforeAndAfter {
   }
 
   test("SPARK-1704: Explain commands as a SchemaRDD") {
-    sql("CREATE TABLE IF NOT EXISTS src (key INT, value STRING)")
+    sql("CREATE TABLE IF NOT EXISTS src (key INT, value StringType)")
 
     val rdd = sql("explain select key, count(value) from src group by key")
     assert(isExplanation(rdd))
@@ -508,7 +508,7 @@ class HiveQuerySuite extends HiveComparisonTest with BeforeAndAfter {
     }
 
     assertResult(0) {
-      sql(s"CREATE TABLE $tableName(key INT, value STRING)").count()
+      sql(s"CREATE TABLE $tableName(key INT, value StringType)").count()
     }
 
     assert(
@@ -525,7 +525,7 @@ class HiveQuerySuite extends HiveComparisonTest with BeforeAndAfter {
 
   test("Exactly once semantics for DDL and command statements") {
     val tableName = "test_exactly_once"
-    val q0 = sql(s"CREATE TABLE $tableName(key INT, value STRING)")
+    val q0 = sql(s"CREATE TABLE $tableName(key INT, value StringType)")
 
     // If the table was not created, the following assertion would fail
     assert(Try(table(tableName)).isSuccess)
@@ -535,7 +535,7 @@ class HiveQuerySuite extends HiveComparisonTest with BeforeAndAfter {
   }
 
   test("DESCRIBE commands") {
-    sql(s"CREATE TABLE test_describe_commands1 (key INT, value STRING) PARTITIONED BY (dt STRING)")
+    sql(s"CREATE TABLE test_describe_commands1 (key INT, value StringType) PARTITIONED BY (dt StringType)")
 
     sql(
       """FROM src INSERT OVERWRITE TABLE test_describe_commands1 PARTITION (dt='2008-06-08')
@@ -626,7 +626,7 @@ class HiveQuerySuite extends HiveComparisonTest with BeforeAndAfter {
   }
 
   test("SPARK-2263: Insert Map<K, V> values") {
-    sql("CREATE TABLE m(value MAP<INT, STRING>)")
+    sql("CREATE TABLE m(value MAP<INT, StringType>)")
     sql("INSERT OVERWRITE TABLE m SELECT MAP(key, value) FROM src LIMIT 10")
     sql("SELECT * FROM m").collect().zip(sql("SELECT * FROM src LIMIT 10").collect()).map {
       case (Row(map: Map[_, _]), Row(key: Int, value: String)) =>
@@ -733,7 +733,7 @@ class HiveQuerySuite extends HiveComparisonTest with BeforeAndAfter {
 
   test("Partition spec validation") {
     sql("DROP TABLE IF EXISTS dp_test")
-    sql("CREATE TABLE dp_test(key INT, value STRING) PARTITIONED BY (dp INT, sp INT)")
+    sql("CREATE TABLE dp_test(key INT, value StringType) PARTITIONED BY (dp INT, sp INT)")
     sql("SET hive.exec.dynamic.partition.mode=strict")
 
     // Should throw when using strict dynamic partition mode without any static partition

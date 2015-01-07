@@ -69,7 +69,7 @@ class CachedTableSuite extends QueryTest {
   }
 
   test("cache invalidation") {
-    sql("CREATE TABLE cachedTable(key INT, value STRING)")
+    sql("CREATE TABLE cachedTable(key INT, value StringType)")
 
     sql("INSERT INTO TABLE cachedTable SELECT * FROM src")
     checkAnswer(sql("SELECT * FROM cachedTable"), table("src").collect().toSeq)

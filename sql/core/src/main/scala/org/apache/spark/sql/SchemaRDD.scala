@@ -17,8 +17,10 @@
 
 package org.apache.spark.sql
 
-import java.util.{Map => JMap, List => JList}
+import java.util.{List => JList}
 
+
+import org.apache.spark.sql.types.util.DataTypeConversions
 
 import scala.collection.JavaConversions._
 
@@ -39,6 +41,7 @@ import org.apache.spark.sql.catalyst.plans.{Inner, JoinType}
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.json.JsonRDD
 import org.apache.spark.sql.execution.{LogicalRDD, EvaluatePython}
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.storage.StorageLevel
 
 /**
@@ -116,8 +119,10 @@ class SchemaRDD(
   // RDD functions: Copy the internal row representation so we present immutable data to users.
   // =========================================================================================
 
-  override def compute(split: Partition, context: TaskContext): Iterator[Row] =
-    firstParent[Row].compute(split, context).map(ScalaReflection.convertRowToScala(_, this.schema))
+  override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
+    firstParent[Row].compute(split, context).map(
+      ScalaReflection.convertRowToScala(_, this.schema.toCatalyst))
+  }
 
   override def getPartitions: Array[Partition] = firstParent[Row].partitions
 
@@ -132,7 +137,7 @@ class SchemaRDD(
    *
    * @group schema
    */
-  lazy val schema: StructType = queryExecution.analyzed.schema
+  lazy val schema: StructType = DataTypeConversions.toPublicType(queryExecution.analyzed.schema)
 
   /**
    * Returns a new RDD with each row transformed to a JSON string.
@@ -140,7 +145,7 @@ class SchemaRDD(
    * @group schema
    */
   def toJSON: RDD[String] = {
-    val rowSchema = this.schema
+    val rowSchema = this.schema.toCatalyst
     this.mapPartitions { iter =>
       val jsonFactory = new JsonFactory()
       iter.map(JsonRDD.rowToJSON(rowSchema, jsonFactory))
@@ -326,10 +331,12 @@ class SchemaRDD(
    *
    * @group Query
    */
-  def where[T1](arg1: Symbol)(udf: (T1) => Boolean) =
+  def where[T1](arg1: Symbol)(udf: (T1) => Boolean) = {
     new SchemaRDD(
       sqlContext,
-      Filter(ScalaUdf(udf, BooleanType, Seq(UnresolvedAttribute(arg1.name))), logicalPlan))
+      Filter(ScalaUdf(
+        udf, catalyst.types.BooleanType, Seq(UnresolvedAttribute(arg1.name))), logicalPlan))
+  }
 
   /**
    * :: Experimental ::
@@ -345,10 +352,12 @@ class SchemaRDD(
    * @group Query
    */
   @Experimental
-  def where(dynamicUdf: (DynamicRow) => Boolean) =
+  def where(dynamicUdf: (DynamicRow) => Boolean) = {
     new SchemaRDD(
       sqlContext,
-      Filter(ScalaUdf(dynamicUdf, BooleanType, Seq(WrapDynamic(logicalPlan.output))), logicalPlan))
+      Filter(ScalaUdf(
+        dynamicUdf, catalyst.types.BooleanType, Seq(WrapDynamic(logicalPlan.output))), logicalPlan))
+  }
 
   /**
    * :: Experimental ::
@@ -419,7 +428,7 @@ class SchemaRDD(
    * Converts a JavaRDD to a PythonRDD. It is used by pyspark.
    */
   private[sql] def javaToPython: JavaRDD[Array[Byte]] = {
-    val fieldTypes = schema.fields.map(_.dataType)
+    val fieldTypes = schema.fields.map(_.dataType.toCatalyst)
     val jrdd = this.map(EvaluatePython.rowToArray(_, fieldTypes)).toJavaRDD()
     SerDeUtil.javaToPython(jrdd)
   }
@@ -429,7 +438,7 @@ class SchemaRDD(
    * format as javaToPython. It is used by pyspark.
    */
   private[sql] def collectToPython: JList[Array[Byte]] = {
-    val fieldTypes = schema.fields.map(_.dataType)
+    val fieldTypes = schema.fields.map(_.dataType.toCatalyst)
     val pickle = new Pickler
     new java.util.ArrayList(collect().map { row =>
       EvaluatePython.rowToArray(row, fieldTypes)
@@ -444,7 +453,7 @@ class SchemaRDD(
       withReplacement: Boolean,
       num: Int,
       seed: Long): JList[Array[Byte]] = {
-    val fieldTypes = schema.fields.map(_.dataType)
+    val fieldTypes = schema.fields.map(_.dataType.toCatalyst)
     val pickle = new Pickler
     new java.util.ArrayList(this.takeSample(withReplacement, num, seed).map { row =>
       EvaluatePython.rowToArray(row, fieldTypes)

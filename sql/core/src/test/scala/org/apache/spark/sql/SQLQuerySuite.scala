@@ -106,7 +106,7 @@ class SQLQuerySuite extends QueryTest with BeforeAndAfterAll {
 
   test("SQRT with automatic string casts") {
     checkAnswer(
-      sql("SELECT SQRT(CAST(key AS STRING)) FROM testData"),
+      sql("SELECT SQRT(CAST(key AS StringType)) FROM testData"),
       (1 to 100).map(x => Row(math.sqrt(x.toDouble))).toSeq
     )
   }
@@ -719,7 +719,7 @@ class SQLQuerySuite extends QueryTest with BeforeAndAfterAll {
   test("cast boolean to string") {
     // TODO Ensure true/false string letter casing is consistent with Hive in all cases.
     checkAnswer(
-      sql("SELECT CAST(TRUE AS STRING), CAST(FALSE AS STRING) FROM testData LIMIT 1"),
+      sql("SELECT CAST(TRUE AS StringType), CAST(FALSE AS StringType) FROM testData LIMIT 1"),
       ("true", "false") :: Nil)
   }
 

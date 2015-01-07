@@ -74,7 +74,7 @@ class HiveUdfSuite extends QueryTest {
       |CREATE EXTERNAL TABLE hiveUdfTestTable (
       |   pair STRUCT<id: INT, value: INT>
       |)
-      |PARTITIONED BY (partition STRING)
+      |PARTITIONED BY (partition StringType)
       |ROW FORMAT SERDE '%s'
       |STORED AS SEQUENCEFILE
     """.

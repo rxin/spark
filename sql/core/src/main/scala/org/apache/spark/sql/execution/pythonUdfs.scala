@@ -19,8 +19,6 @@ package org.apache.spark.sql.execution
 
 import java.util.{List => JList, Map => JMap}
 
-import org.apache.spark.sql.catalyst.types.decimal.Decimal
-
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 

@@ -18,6 +18,7 @@
 package org.apache.spark.sql.api.java
 
 import org.apache.spark.sql.catalyst.types.decimal.Decimal
+import org.apache.spark.sql.types.NullType
 
 import scala.beans.BeanProperty
 

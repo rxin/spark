@@ -75,7 +75,7 @@ class StatisticsSuite extends QueryTest with BeforeAndAfterAll {
       catalog.lookupRelation(None, tableName).statistics.sizeInBytes
 
     // Non-partitioned table
-    sql("CREATE TABLE analyzeTable (key STRING, value STRING)").collect()
+    sql("CREATE TABLE analyzeTable (key StringType, value StringType)").collect()
     sql("INSERT INTO TABLE analyzeTable SELECT * FROM src").collect()
     sql("INSERT INTO TABLE analyzeTable SELECT * FROM src").collect()
 
@@ -92,7 +92,7 @@ class StatisticsSuite extends QueryTest with BeforeAndAfterAll {
     // Partitioned table
     sql(
       """
-        |CREATE TABLE analyzeTable_part (key STRING, value STRING) PARTITIONED BY (ds STRING)
+        |CREATE TABLE analyzeTable_part (key StringType, value StringType) PARTITIONED BY (ds StringType)
       """.stripMargin).collect()
     sql(
       """

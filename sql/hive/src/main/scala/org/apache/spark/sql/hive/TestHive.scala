@@ -193,14 +193,14 @@ class TestHiveContext(sc: SparkContext) extends HiveContext(sc) {
   // /itests/util/src/main/java/org/apache/hadoop/hive/ql/QTestUtil.java
   val hiveQTestUtilTables = Seq(
     TestTable("src",
-      "CREATE TABLE src (key INT, value STRING)".cmd,
+      "CREATE TABLE src (key INT, value StringType)".cmd,
       s"LOAD DATA LOCAL INPATH '${getHiveFile("data/files/kv1.txt")}' INTO TABLE src".cmd),
     TestTable("src1",
-      "CREATE TABLE src1 (key INT, value STRING)".cmd,
+      "CREATE TABLE src1 (key INT, value StringType)".cmd,
       s"LOAD DATA LOCAL INPATH '${getHiveFile("data/files/kv3.txt")}' INTO TABLE src1".cmd),
     TestTable("srcpart", () => {
       runSqlHive(
-        "CREATE TABLE srcpart (key INT, value STRING) PARTITIONED BY (ds STRING, hr STRING)")
+        "CREATE TABLE srcpart (key INT, value StringType) PARTITIONED BY (ds StringType, hr StringType)")
       for (ds <- Seq("2008-04-08", "2008-04-09"); hr <- Seq("11", "12")) {
         runSqlHive(
           s"""LOAD DATA LOCAL INPATH '${getHiveFile("data/files/kv1.txt")}'
@@ -209,7 +209,7 @@ class TestHiveContext(sc: SparkContext) extends HiveContext(sc) {
       }
     }),
     TestTable("srcpart1", () => {
-      runSqlHive("CREATE TABLE srcpart1 (key INT, value STRING) PARTITIONED BY (ds STRING, hr INT)")
+      runSqlHive("CREATE TABLE srcpart1 (key INT, value StringType) PARTITIONED BY (ds StringType, hr INT)")
       for (ds <- Seq("2008-04-08", "2008-04-09"); hr <- 11 to 12) {
         runSqlHive(
           s"""LOAD DATA LOCAL INPATH '${getHiveFile("data/files/kv1.txt")}'
@@ -239,19 +239,19 @@ class TestHiveContext(sc: SparkContext) extends HiveContext(sc) {
         s"LOAD DATA LOCAL INPATH '${getHiveFile("data/files/complex.seq")}' INTO TABLE src_thrift")
     }),
     TestTable("serdeins",
-      s"""CREATE TABLE serdeins (key INT, value STRING)
+      s"""CREATE TABLE serdeins (key INT, value StringType)
          |ROW FORMAT SERDE '${classOf[LazySimpleSerDe].getCanonicalName}'
          |WITH SERDEPROPERTIES ('field.delim'='\\t')
        """.stripMargin.cmd,
       "INSERT OVERWRITE TABLE serdeins SELECT * FROM src".cmd),
     TestTable("sales",
-      s"""CREATE TABLE IF NOT EXISTS sales (key STRING, value INT)
+      s"""CREATE TABLE IF NOT EXISTS sales (key StringType, value INT)
          |ROW FORMAT SERDE '${classOf[RegexSerDe].getCanonicalName}'
          |WITH SERDEPROPERTIES ("input.regex" = "([^ ]*)\t([^ ]*)")
        """.stripMargin.cmd,
       s"LOAD DATA LOCAL INPATH '${getHiveFile("data/files/sales.txt")}' INTO TABLE sales".cmd),
     TestTable("episodes",
-      s"""CREATE TABLE episodes (title STRING, air_date STRING, doctor INT)
+      s"""CREATE TABLE episodes (title StringType, air_date StringType, doctor INT)
          |ROW FORMAT SERDE '${classOf[AvroSerDe].getCanonicalName}'
          |STORED AS
          |INPUTFORMAT '${classOf[AvroContainerInputFormat].getCanonicalName}'
@@ -286,7 +286,7 @@ class TestHiveContext(sc: SparkContext) extends HiveContext(sc) {
     // THIS TABLE IS NOT THE SAME AS THE HIVE TEST TABLE episodes_partitioned AS DYNAMIC PARITIONING
     // IS NOT YET SUPPORTED
     TestTable("episodes_part",
-      s"""CREATE TABLE episodes_part (title STRING, air_date STRING, doctor INT)
+      s"""CREATE TABLE episodes_part (title StringType, air_date StringType, doctor INT)
          |PARTITIONED BY (doctor_pt INT)
          |ROW FORMAT SERDE '${classOf[AvroSerDe].getCanonicalName}'
          |STORED AS

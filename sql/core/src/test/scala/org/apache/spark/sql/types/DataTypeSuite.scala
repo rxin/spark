@@ -15,40 +15,39 @@
 * limitations under the License.
 */
 
-package org.apache.spark.sql
+package org.apache.spark.sql.types
 
 import org.scalatest.FunSuite
 
 class DataTypeSuite extends FunSuite {
 
   test("construct an ArrayType") {
-    val array = ArrayType(StringType)
-
+    val array = ArrayType(StringType, true)
     assert(ArrayType(StringType, true) === array)
   }
 
   test("construct an MapType") {
-    val map = MapType(StringType, IntegerType)
+    val map = MapType(StringType, IntegerType, true)
 
     assert(MapType(StringType, IntegerType, true) === map)
   }
 
   test("extract fields from a StructType") {
     val struct = StructType(
-      StructField("a", IntegerType, true) ::
-      StructField("b", LongType, false) ::
-      StructField("c", StringType, true) ::
-      StructField("d", FloatType, true) :: Nil)
+      DataType.createStructField("a", IntegerType, true) ::
+      DataType.createStructField("b", LongType, false) ::
+      DataType.createStructField("c", StringType, true) ::
+      DataType.createStructField("d", FloatType, true) :: Nil)
 
-    assert(StructField("b", LongType, false) === struct("b"))
+    assert(DataType.createStructField("b", LongType, false) === struct("b"))
 
     intercept[IllegalArgumentException] {
       struct("e")
     }
 
     val expectedStruct = StructType(
-      StructField("b", LongType, false) ::
-      StructField("d", FloatType, true) :: Nil)
+      DataType.createStructField("b", LongType, false) ::
+      DataType.createStructField("d", FloatType, true) :: Nil)
 
     assert(expectedStruct === struct(Set("b", "d")))
     intercept[IllegalArgumentException] {

@@ -23,6 +23,7 @@ import org.apache.hadoop.conf.{Configurable, Configuration}
 import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapreduce.{JobContext, InputSplit, Job}
 import org.apache.spark.sql.catalyst.expressions.codegen.GeneratePredicate
+import org.apache.spark.sql.types.util.DataTypeConversions
 
 import parquet.hadoop.ParquetInputFormat
 import parquet.hadoop.util.ContextUtil
@@ -31,7 +32,7 @@ import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.{Partition => SparkPartition, Logging}
 import org.apache.spark.rdd.{NewHadoopPartition, RDD}
 
-import org.apache.spark.sql.{SQLConf, Row, SQLContext}
+import org.apache.spark.sql.{types, SQLConf, Row, SQLContext}
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.types.{StringType, IntegerType, StructField, StructType}
 import org.apache.spark.sql.sources._
@@ -133,21 +134,24 @@ case class ParquetRelation2(path: String)(@transient val sqlContext: SQLContext)
 
   override val sizeInBytes = partitions.flatMap(_.files).map(_.getLen).sum
 
-  val dataSchema = StructType.fromAttributes( // TODO: Parquet code should not deal with attributes.
-    ParquetTypesConverter.readSchemaFromFile(
-      partitions.head.files.head.getPath,
-      Some(sparkContext.hadoopConfiguration),
-      sqlContext.isParquetBinaryAsString))
+  // TODO: Parquet code should not deal with attributes.
+  val dataSchema = StructType.fromAttributes(
+      ParquetTypesConverter.readSchemaFromFile(
+        partitions.head.files.head.getPath,
+        Some(sparkContext.hadoopConfiguration),
+        sqlContext.isParquetBinaryAsString))
 
   val dataIncludesKey =
     partitionKeys.headOption.map(dataSchema.fieldNames.contains(_)).getOrElse(true)
 
-  override val schema =
-    if (dataIncludesKey) {
+  override val schema: types.StructType = {
+    val catalystSchema = if (dataIncludesKey) {
       dataSchema
     } else {
       StructType(dataSchema.fields :+ StructField(partitionKeys.head, IntegerType))
     }
+    DataTypeConversions.toPublicType(catalystSchema)
+  }
 
   override def buildScan(output: Seq[Attribute], predicates: Seq[Expression]): RDD[Row] = {
     // This is mostly a hack so that we can use the existing parquet filter code.
@@ -157,7 +161,7 @@ case class ParquetRelation2(path: String)(@transient val sqlContext: SQLContext)
     ParquetInputFormat.setReadSupportClass(job, classOf[RowReadSupport])
     val jobConf: Configuration = ContextUtil.getConfiguration(job)
 
-    val requestedSchema = StructType(requiredColumns.map(schema(_)))
+    val requestedSchema = StructType(requiredColumns.map(schema(_).toCatalyst))
 
     val partitionKeySet = partitionKeys.toSet
     val rawPredicate =
@@ -210,7 +214,7 @@ case class ParquetRelation2(path: String)(@transient val sqlContext: SQLContext)
       ParquetTypesConverter.convertToString(requestedSchema.toAttributes))
     jobConf.set(
       RowWriteSupport.SPARK_ROW_SCHEMA,
-      ParquetTypesConverter.convertToString(schema.toAttributes))
+      ParquetTypesConverter.convertToString(schema.toCatalyst.toAttributes))
 
     // Tell FilteringParquetRowInputFormat whether it's okay to cache Parquet and FS metadata
     val useCache = sqlContext.getConf(SQLConf.PARQUET_CACHE_METADATA, "true").toBoolean

@@ -33,7 +33,7 @@ class BigDataBenchmarkSuite extends HiveComparisonTest {
       "rankings",
       s"""
         |CREATE EXTERNAL TABLE rankings (
-        |  pageURL STRING,
+        |  pageURL StringType,
         |  pageRank INT,
         |  avgDuration INT)
         |  ROW FORMAT DELIMITED FIELDS TERMINATED BY ","
@@ -43,7 +43,7 @@ class BigDataBenchmarkSuite extends HiveComparisonTest {
       "scratch",
       s"""
         |CREATE EXTERNAL TABLE scratch (
-        |  pageURL STRING,
+        |  pageURL StringType,
         |  pageRank INT,
         |  avgDuration INT)
         |  ROW FORMAT DELIMITED FIELDS TERMINATED BY ","
@@ -53,14 +53,14 @@ class BigDataBenchmarkSuite extends HiveComparisonTest {
       "uservisits",
       s"""
         |CREATE EXTERNAL TABLE uservisits (
-        |  sourceIP STRING,
-        |  destURL STRING,
-        |  visitDate STRING,
-        |  adRevenue DOUBLE,
-        |  userAgent STRING,
-        |  countryCode STRING,
-        |  languageCode STRING,
-        |  searchWord STRING,
+        |  sourceIP StringType,
+        |  destURL StringType,
+        |  visitDate StringType,
+        |  adRevenue DoubleType,
+        |  userAgent StringType,
+        |  countryCode StringType,
+        |  languageCode StringType,
+        |  searchWord StringType,
         |  duration INT)
         |  ROW FORMAT DELIMITED FIELDS TERMINATED BY ","
         |  STORED AS TEXTFILE LOCATION "${new File(testDataDirectory, "uservisits").getCanonicalPath}"
@@ -68,7 +68,7 @@ class BigDataBenchmarkSuite extends HiveComparisonTest {
     TestTable(
       "documents",
       s"""
-        |CREATE EXTERNAL TABLE documents (line STRING)
+        |CREATE EXTERNAL TABLE documents (line StringType)
         |STORED AS TEXTFILE
         |LOCATION "${new File(testDataDirectory, "crawl").getCanonicalPath}"
       """.stripMargin.cmd))

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.api.java;
+package org.apache.spark.sql.types;
 
 import java.util.*;
 
@@ -28,64 +28,73 @@ import java.util.*;
 public abstract class DataType {
 
   /**
+   * Specific data types must implement this for conversion to internal Catalyst types.
+   */
+  abstract public org.apache.spark.sql.catalyst.types.DataType toCatalyst();
+
+  public String json() {
+    return toCatalyst().json();
+  }
+
+  /**
    * Gets the StringType object.
    */
-  public static final StringType StringType = new StringType();
+  public static final DataType StringType = StringType$.MODULE$;
 
   /**
    * Gets the BinaryType object.
    */
-  public static final BinaryType BinaryType = new BinaryType();
+  public static final DataType BinaryType = BinaryType$.MODULE$;
 
   /**
    * Gets the BooleanType object.
    */
-  public static final BooleanType BooleanType = new BooleanType();
+  public static final DataType BooleanType = BooleanType$.MODULE$;
 
   /**
    * Gets the DateType object.
    */
-  public static final DateType DateType = new DateType();
+  public static final DataType DateType = DateType$.MODULE$;
 
   /**
    * Gets the TimestampType object.
    */
-  public static final TimestampType TimestampType = new TimestampType();
+  public static final DataType TimestampType = TimestampType$.MODULE$;
 
   /**
    * Gets the DoubleType object.
    */
-  public static final DoubleType DoubleType = new DoubleType();
+  public static final DataType DoubleType = DoubleType$.MODULE$;
 
   /**
    * Gets the FloatType object.
    */
-  public static final FloatType FloatType = new FloatType();
+  public static final DataType FloatType = FloatType$.MODULE$;
 
   /**
    * Gets the ByteType object.
    */
-  public static final ByteType ByteType = new ByteType();
+  public static final DataType ByteType = ByteType$.MODULE$;
 
   /**
    * Gets the IntegerType object.
    */
-  public static final IntegerType IntegerType = new IntegerType();
+  public static final DataType IntegerType = IntegerType$.MODULE$;
 
   /**
    * Gets the LongType object.
    */
-  public static final LongType LongType = new LongType();
+  public static final DataType LongType = LongType$.MODULE$;
 
   /**
    * Gets the ShortType object.
    */
-  public static final ShortType ShortType = new ShortType();
+  public static final DataType ShortType = ShortType$.MODULE$;
 
   /**
    * Gets the NullType object.
    */
-  public static final NullType NullType = new NullType();
+  public static final DataType NullType = NullType$.MODULE$;
 
   /**
    * Creates an ArrayType by specifying the data type of elements ({@code elementType}).
@@ -197,12 +206,17 @@ public abstract class DataType {
           "fields should not contain any null.");
       }
 
-      distinctNames.add(field.getName());
+      distinctNames.add(field.name());
     }
     if (distinctNames.size() != fields.length) {
       throw new IllegalArgumentException("fields should have distinct names.");
     }
 
     return new StructType(fields);
+  }
+
+  public static DataType fromJson(String json) {
+    return org.apache.spark.sql.types.util.DataTypeConversions$.MODULE$.toPublicType(
+      org.apache.spark.sql.catalyst.types.DataType$.MODULE$.fromJson(json));
   }
 }

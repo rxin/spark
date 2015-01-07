@@ -20,6 +20,9 @@ package org.apache.spark.sql.api.java;
 import java.util.List;
 import java.util.ArrayList;
 
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DecimalType;
+import org.apache.spark.sql.types.StructField;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -28,8 +31,8 @@ import org.apache.spark.sql.types.util.DataTypeConversions;
 public class JavaSideDataTypeConversionSuite {
   public void checkDataType(DataType javaDataType) {
     org.apache.spark.sql.catalyst.types.DataType scalaDataType =
-      DataTypeConversions.asScalaDataType(javaDataType);
-    DataType actual = DataTypeConversions.asJavaDataType(scalaDataType);
+      DataTypeConversions.toCatalystType(javaDataType);
+    DataType actual = DataTypeConversions.toPublicType(scalaDataType);
     Assert.assertEquals(javaDataType, actual);
   }
 

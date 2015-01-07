@@ -54,7 +54,7 @@ class JavaHiveQLSuite extends FunSuite {
     }
 
     assertResult(0) {
-      javaHiveCtx.sql(s"CREATE TABLE $tableName(key INT, value STRING)").count()
+      javaHiveCtx.sql(s"CREATE TABLE $tableName(key INT, value StringType)").count()
     }
 
     assert(
@@ -80,7 +80,7 @@ class JavaHiveQLSuite extends FunSuite {
 
   test("Exactly once semantics for DDL and command statements") {
     val tableName = "test_exactly_once"
-    val q0 = javaHiveCtx.sql(s"CREATE TABLE $tableName(key INT, value STRING)")
+    val q0 = javaHiveCtx.sql(s"CREATE TABLE $tableName(key INT, value StringType)")
 
     // If the table was not created, the following assertion would fail
     assert(Try(TestHive.table(tableName)).isSuccess)

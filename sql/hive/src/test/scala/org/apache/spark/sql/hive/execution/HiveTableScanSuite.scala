@@ -27,7 +27,7 @@ class HiveTableScanSuite extends HiveComparisonTest {
 
   createQueryTest("partition_based_table_scan_with_different_serde",
     """
-      |CREATE TABLE part_scan_test (key STRING, value STRING) PARTITIONED BY (ds STRING)
+      |CREATE TABLE part_scan_test (key StringType, value StringType) PARTITIONED BY (ds StringType)
       |ROW FORMAT SERDE
       |'org.apache.hadoop.hive.serde2.columnar.LazyBinaryColumnarSerDe'
       |STORED AS RCFILE;
@@ -54,7 +54,7 @@ class HiveTableScanSuite extends HiveComparisonTest {
     """.stripMargin)
 
   test("Spark-4041: lowercase issue") {
-    TestHive.sql("CREATE TABLE tb (KEY INT, VALUE STRING) STORED AS ORC")
+    TestHive.sql("CREATE TABLE tb (KEY INT, VALUE StringType) STORED AS ORC")
     TestHive.sql("insert into table tb select key, value from src")
     TestHive.sql("select KEY from tb where VALUE='just_for_test' limit 5").collect()
     TestHive.sql("drop table tb")

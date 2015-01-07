@@ -45,7 +45,7 @@ class ParquetMetastoreSuite extends ParquetPartitioningTest {
       create external table partitioned_parquet
       (
         intField INT,
-        stringField STRING
+        stringField StringType
       )
       PARTITIONED BY (p int)
       ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
@@ -59,7 +59,7 @@ class ParquetMetastoreSuite extends ParquetPartitioningTest {
       create external table partitioned_parquet_with_key
       (
         intField INT,
-        stringField STRING
+        stringField StringType
       )
       PARTITIONED BY (p int)
       ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
@@ -73,7 +73,7 @@ class ParquetMetastoreSuite extends ParquetPartitioningTest {
       create external table normal_parquet
       (
         intField INT,
-        stringField STRING
+        stringField StringType
       )
       ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
        STORED AS
