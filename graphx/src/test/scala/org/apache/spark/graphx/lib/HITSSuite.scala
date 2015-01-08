@@ -137,7 +137,7 @@ class HITSSuite extends FunSuite with LocalSparkContext {
       val errorTol = 1.0e-5
       val gridGraph = GraphGenerators.gridGraph(sc, rows, cols).cache()
 
-      val staticHits = gridGraph.staticHITS(numIter).vertices.cache()
+      val staticHits = gridGraph.staticHITS(numIter).vertices
 
       val referenceHits = VertexRDD(sc.parallelize(GridHITS(rows, cols, numIter)))
 
@@ -149,18 +149,18 @@ class HITSSuite extends FunSuite with LocalSparkContext {
   // Compare result on Chain graph (10 vertices connected in a row) with the theoretical value
   test("Chain HITS") {
     withSpark { sc =>
-      val rawEdges = sc.parallelize((0L until 9L).map(x => (x, x+1))).cache()
+      val rawEdges = sc.parallelize((0L until 9L).map(x => (x, x+1)))
       val chain = Graph.fromEdgeTuples(rawEdges, 1.0).cache()
       val numIter = 10
       val errorTol = 1.0e-5
 
-      val staticHits = chain.staticHITS(numIter).vertices.cache()
+      val staticHits = chain.staticHITS(numIter).vertices
 
       val referenceHits = chain.mapVertices((id,attr) => id match {
           case 0 => (1/3.0, 0.0)
           case 9 => (0.0, 1/3.0)
           case _ => (1/3.0, 1/3.0)
-      } ).vertices.cache()
+      } ).vertices
 
       assert(compareHits(referenceHits, staticHits) < errorTol)
     }
@@ -174,9 +174,9 @@ class HITSSuite extends FunSuite with LocalSparkContext {
       val numIter = 25
       val errorTol = 1.0e-5
 
-      val staticHits = graph.staticHITS(numIter).vertices.cache()
+      val staticHits = graph.staticHITS(numIter).vertices
 
-      val referenceHits = graph.mapVertices((id,attr) => (0.0, 0.0)).vertices.cache()
+      val referenceHits = graph.mapVertices((id,attr) => (0.0, 0.0)).vertices
 
       assert(compareHits(referenceHits, staticHits) < errorTol)
     }
@@ -186,18 +186,18 @@ class HITSSuite extends FunSuite with LocalSparkContext {
   // Compare result on a graph composed of multiple cycles and a chain, with the theoretical value
   test("Cycle Forest HITS") {
     withSpark { sc =>
-      val rawEdges = sc.parallelize((0L until 64).map(x => (x, x/10*10 + (x+1)%10))).cache()
+      val rawEdges = sc.parallelize((0L until 64).map(x => (x, x/10*10 + (x+1)%10)))
       val graph = Graph.fromEdgeTuples(rawEdges, 1.0).cache()
       val numIter = 15
       val errorTol = 1.0e-5
 
-      val staticHits = graph.staticHITS(numIter).vertices.cache()
+      val staticHits = graph.staticHITS(numIter).vertices
 
       val referenceHits = graph.mapVertices((id,attr) => id match {
           case 60 => (0.125, 0.0)
           case 64 => (0.0, 0.125) 
           case _ => (0.125, 0.125)
-      } ).vertices.cache()
+      } ).vertices
 
       assert(compareHits(referenceHits, staticHits) < errorTol)
     }
