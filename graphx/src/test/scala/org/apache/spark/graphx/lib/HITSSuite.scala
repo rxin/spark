@@ -94,6 +94,39 @@ class HITSSuite extends FunSuite with LocalSparkContext {
     }
   } // end of test Star HITS
 
+  // Test warm start by running for 0 iterations
+  test("Warm Start HITS") {
+    withSpark { sc =>
+      val graph = GraphGenerators.starGraph(sc, 3).cache()
+      val errorTol = 1.0e-5
+
+      // Warm starting from hub data should keep hub data the same and have default auth values
+      val hubAuthRaw1 = Array(
+        (0L, (2.0/3.0, 1.0)),
+        (1L, (1.0/3.0, 1.0)),
+        (2L, (2.0/3.0, 1.0)))
+      val hubAuth1 = VertexRDD(sc.parallelize(hubAuthRaw1))
+      val graph1 = graph.outerJoinVertices(hubAuth1) { (id,auth,y) => y.get._1 }
+      val reference1 = hubAuth1
+      val hits1 = graph1.staticHITS(0, HITS.WarmStartOption.WarmStartFromHubData).vertices
+
+      assert(compareHits(reference1, hits1) < errorTol)
+
+      // Warm starting from auth data should keep auth data the same and update the hub values
+      val hubAuthRaw2 = Array(
+        (0L, (0.0, 2.0/3.0)),
+        (1L, (1/Math.sqrt(2.0), 1.0/3.0)),
+        (2L, (1/Math.sqrt(2.0), 2.0/3.0)))
+      val hubAuth2 = VertexRDD(sc.parallelize(hubAuthRaw2))
+      val graph2 = graph.outerJoinVertices(hubAuth2) { (id,auth,y) => y.get._2 }
+      val reference2 = hubAuth2
+      val hits2 = graph2.staticHITS(0, HITS.WarmStartOption.WarmStartFromAuthData).vertices
+
+      assert(compareHits(reference2, hits2) < errorTol)
+
+    }
+  } // end of test Warm Starm HITS
+
 
   // Compare result on Grid graph with the values computed by GridHITS
   test("Grid HITS") {
@@ -102,9 +135,9 @@ class HITSSuite extends FunSuite with LocalSparkContext {
       val cols = 10
       val numIter = 25
       val errorTol = 1.0e-5
-      val gridGraph = GraphGenerators.gridGraph(sc, rows, cols)
+      val gridGraph = GraphGenerators.gridGraph(sc, rows, cols).cache()
 
-      val staticHits = gridGraph.staticHITS(numIter).vertices
+      val staticHits = gridGraph.staticHITS(numIter).vertices.cache()
 
       val referenceHits = VertexRDD(sc.parallelize(GridHITS(rows, cols, numIter)))
 
@@ -116,18 +149,18 @@ class HITSSuite extends FunSuite with LocalSparkContext {
   // Compare result on Chain graph (10 vertices connected in a row) with the theoretical value
   test("Chain HITS") {
     withSpark { sc =>
-      val rawEdges = sc.parallelize((0L until 9L).map(x => (x, x+1)))
+      val rawEdges = sc.parallelize((0L until 9L).map(x => (x, x+1))).cache()
       val chain = Graph.fromEdgeTuples(rawEdges, 1.0).cache()
       val numIter = 10
       val errorTol = 1.0e-5
 
-      val staticHits = chain.staticHITS(numIter).vertices
+      val staticHits = chain.staticHITS(numIter).vertices.cache()
 
       val referenceHits = chain.mapVertices((id,attr) => id match {
           case 0 => (1/3.0, 0.0)
           case 9 => (0.0, 1/3.0)
           case _ => (1/3.0, 1/3.0)
-      } ).vertices
+      } ).vertices.cache()
 
       assert(compareHits(referenceHits, staticHits) < errorTol)
     }
@@ -141,9 +174,9 @@ class HITSSuite extends FunSuite with LocalSparkContext {
       val numIter = 25
       val errorTol = 1.0e-5
 
-      val staticHits = graph.staticHITS(numIter).vertices.cache
+      val staticHits = graph.staticHITS(numIter).vertices.cache()
 
-      val referenceHits = graph.mapVertices((id,attr) => (0.0, 0.0)).vertices
+      val referenceHits = graph.mapVertices((id,attr) => (0.0, 0.0)).vertices.cache()
 
       assert(compareHits(referenceHits, staticHits) < errorTol)
     }
@@ -153,18 +186,18 @@ class HITSSuite extends FunSuite with LocalSparkContext {
   // Compare result on a graph composed of multiple cycles and a chain, with the theoretical value
   test("Cycle Forest HITS") {
     withSpark { sc =>
-      val rawEdges = sc.parallelize((0L until 64).map(x => (x, x/10*10 + (x+1)%10)))
+      val rawEdges = sc.parallelize((0L until 64).map(x => (x, x/10*10 + (x+1)%10))).cache()
       val graph = Graph.fromEdgeTuples(rawEdges, 1.0).cache()
       val numIter = 15
       val errorTol = 1.0e-5
 
-      val staticHits = graph.staticHITS(numIter).vertices
+      val staticHits = graph.staticHITS(numIter).vertices.cache()
 
       val referenceHits = graph.mapVertices((id,attr) => id match {
           case 60 => (0.125, 0.0)
           case 64 => (0.0, 0.125) 
           case _ => (0.125, 0.125)
-      } ).vertices
+      } ).vertices.cache()
 
       assert(compareHits(referenceHits, staticHits) < errorTol)
     }

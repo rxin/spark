@@ -362,8 +362,10 @@ class GraphOps[VD: ClassTag, ED: ClassTag](graph: Graph[VD, ED]) extends Seriali
    *
    * @see [[org.apache.spark.graphx.lib.HITS$#run]]
    */
-  def staticHITS(numIter: Int): Graph[(Double, Double), ED] = {
-    HITS.run(graph, numIter)
+  def staticHITS(numIter: Int,
+      warmStartOption:HITS.WarmStartOption.WarmStartOption = HITS.WarmStartOption.ColdStart)
+  : Graph[(Double, Double), ED] = {
+    HITS.run(graph, numIter, warmStartOption)
   }
 
 
