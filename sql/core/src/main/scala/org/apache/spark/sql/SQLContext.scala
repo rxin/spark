@@ -222,6 +222,11 @@ class SQLContext(@transient val sparkContext: SparkContext)
   def parquetFile(path: String): SchemaRDD =
     new SchemaRDD(this, parquet.ParquetRelation(path, Some(sparkContext.hadoopConfiguration), this))
 
+  // TODO: Remove this once we change everything else to use DataFrame.
+  def p(path: String): DataFrame ={
+    new DataFrame(this, parquet.ParquetRelation(path, Some(sparkContext.hadoopConfiguration), this))
+  }
+
   /**
    * Loads a JSON file (one object per line), returning the result as a [[SchemaRDD]].
    * It goes through the entire dataset once to determine the schema.

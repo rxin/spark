@@ -18,8 +18,23 @@
 package org.apache.spark.sql.catalyst.plans
 
 sealed abstract class JoinType
+
+object JoinType {
+  def apply(typ: String): JoinType = typ.toLowerCase.replace("_", "") match {
+    case "inner" => Inner
+    case "outer" => FullOuter
+    case "leftouter" => LeftOuter
+    case "rightouter" => RightOuter
+    case "leftsemi" => LeftSemi
+  }
+}
+
 case object Inner extends JoinType
+
 case object LeftOuter extends JoinType
+
 case object RightOuter extends JoinType
+
 case object FullOuter extends JoinType
+
 case object LeftSemi extends JoinType
