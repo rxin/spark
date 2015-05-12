@@ -460,11 +460,11 @@ class DataFrameSuite extends QueryTest {
 
   test("SPARK-7324 dropDuplicates") {
     val testData = TestSQLContext.sparkContext.parallelize(
-      (2, 1, 2) :: (1, 1, 1) ::
-      (1, 2, 1) :: (2, 1, 2) ::
-      (2, 2, 2) :: (2, 2, 1) ::
-      (2, 1, 1) :: (1, 1, 2) ::
-      (1, 2, 2) :: (1, 2, 1) :: Nil).toDF("key", "value1", "value2")
+      (2, 1, 2) ::(1, 1, 1) ::
+        (1, 2, 1) ::(2, 1, 2) ::
+        (2, 2, 2) ::(2, 2, 1) ::
+        (2, 1, 1) ::(1, 1, 2) ::
+        (1, 2, 2) ::(1, 2, 1) :: Nil).toDF("key", "value1", "value2")
 
     checkAnswer(
       testData.dropDuplicates(),
@@ -491,5 +491,15 @@ class DataFrameSuite extends QueryTest {
     checkAnswer(
       testData.dropDuplicates(Seq("value2")),
       Seq(Row(2, 1, 2), Row(1, 1, 1)))
+  }
+
+  test("range api") {
+    TestSQLContext.range(10).registerTempTable("rangeTable1")
+    TestSQLContext.range(-2).registerTempTable("rangeTable2")
+    val res1 = TestSQLContext.sql("select id from rangeTable1")
+    assert(res1.count == 10)
+    assert(res1.agg(sum("id")).as("sumid").collect() === Seq(Row(45)))
+    val res2 = TestSQLContext.sql("select id from rangeTable2")
+    assert(res2.count == 0)
   }
 }

@@ -991,6 +991,15 @@ class SQLContext(@transient val sparkContext: SparkContext)
   }
 
   /**
+   *
+   */
+  def range(n: Long): DataFrame = {
+    createDataFrame(
+      sparkContext.range(n).map(Row(_)),
+      StructType(StructField("id", LongType) :: Nil))
+  }
+
+  /**
    * Executes a SQL query using Spark, returning the result as a [[DataFrame]]. The dialect that is
    * used for SQL parsing can be configured with 'spark.sql.dialect'.
    *

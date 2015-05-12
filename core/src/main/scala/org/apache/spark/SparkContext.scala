@@ -690,6 +690,21 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   }
 
   /** Distribute a local Scala collection to form an RDD.
+    *
+    * @note Parallelize acts lazily. If `seq` is a mutable collection and is altered after the call
+    * to parallelize and before the first action on the RDD, the resultant RDD will reflect the
+    * modified collection. Pass a copy of the argument to avoid this.
+    * @note avoid using `parallelize(Seq())` to create an empty `RDD`. Consider `emptyRDD` for an
+    * RDD with no partitions, or `parallelize(Seq[T]())` for an RDD of `T` with empty partitions.
+    */
+  def range(
+      limit: Long,
+      numSlices: Int = defaultParallelism): RDD[Long] = withScope {
+    assertNotStopped()
+    new RangeCollectionRDD(this, limit, numSlices, Map[Int, Seq[String]]())
+  }
+
+  /** Distribute a local Scala collection to form an RDD.
    *
    * This method is identical to `parallelize`.
    */
