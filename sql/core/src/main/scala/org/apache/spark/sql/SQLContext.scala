@@ -1004,6 +1004,20 @@ class SQLContext(@transient val sparkContext: SparkContext)
   }
 
   /**
+   * :: Experimental ::
+   * Construct a [[DataFrame]] including [0, n) of LongType, with column name as `id`,
+   * with partition numbers specified.
+   *
+   * @group dataframe
+   */
+  @Experimental
+  def range(n: Long, numPartitions: Int): DataFrame = {
+    createDataFrame(
+      sparkContext.range(n, numPartitions).map(Row(_)),
+      StructType(StructField("id", LongType) :: Nil))
+  }
+
+  /**
    * Executes a SQL query using Spark, returning the result as a [[DataFrame]]. The dialect that is
    * used for SQL parsing can be configured with 'spark.sql.dialect'.
    *
