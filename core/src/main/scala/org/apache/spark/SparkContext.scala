@@ -689,13 +689,10 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     new ParallelCollectionRDD[T](this, seq, numSlices, Map[Int, Seq[String]]())
   }
 
-  /** Distribute a local Scala collection to form an RDD.
+  /** Generate Long data from 0 until `limit` to form an RDD.
     *
-    * @note Parallelize acts lazily. If `seq` is a mutable collection and is altered after the call
-    * to parallelize and before the first action on the RDD, the resultant RDD will reflect the
-    * modified collection. Pass a copy of the argument to avoid this.
-    * @note avoid using `parallelize(Seq())` to create an empty `RDD`. Consider `emptyRDD` for an
-    * RDD with no partitions, or `parallelize(Seq[T]())` for an RDD of `T` with empty partitions.
+    * @note even we can set `limit` larger than Int.MaxValue, we need to make sure after partition
+    * each partition would have data size acceptable by setting a proper `numSlice`.
     */
   def range(
       limit: Long,

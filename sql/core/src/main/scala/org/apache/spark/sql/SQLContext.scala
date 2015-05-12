@@ -991,8 +991,12 @@ class SQLContext(@transient val sparkContext: SparkContext)
   }
 
   /**
+   * :: Experimental ::
+   * Construct a [[DataFrame]] including [0, n) of LongType, with column name as `id`.
    *
+   * @group dataframe
    */
+  @Experimental
   def range(n: Long): DataFrame = {
     createDataFrame(
       sparkContext.range(n).map(Row(_)),
