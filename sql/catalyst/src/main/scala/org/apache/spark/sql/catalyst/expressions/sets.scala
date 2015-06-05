@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.catalyst.expressions
 
+import org.apache.spark.sql.catalyst.expressions.codegen.{GeneratedExpressionCode, Code, CodeGenContext}
 import org.apache.spark.sql.types._
 import org.apache.spark.util.collection.OpenHashSet
 
@@ -60,6 +61,18 @@ case class NewSet(elementType: DataType) extends LeafExpression {
     new OpenHashSet[Any]()
   }
 
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): Code = {
+    elementType match {
+      case IntegerType | LongType =>
+        s"""
+          boolean ${ev.nullTerm} = false;
+          ${ctx.hashSetForType(elementType)} ${ev.primitiveTerm} =
+            new ${ctx.hashSetForType(elementType)}();
+        """
+      case _ => super.genCode(ctx, ev)
+    }
+  }
+
   override def toString: String = s"new Set($dataType)"
 }
 
@@ -88,6 +101,25 @@ case class AddItemToSet(item: Expression, set: Expression) extends Expression {
       }
     } else {
       setEval
+    }
+  }
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): Code = {
+    val elementType = set.dataType.asInstanceOf[OpenHashSetUDT].elementType
+    elementType match {
+      case IntegerType | LongType =>
+        val itemEval = item.gen(ctx)
+        val setEval = set.gen(ctx)
+        val htype = ctx.hashSetForType(elementType)
+
+        itemEval.code + setEval.code +  s"""
+           if (!${itemEval.nullTerm} && !${setEval.nullTerm}) {
+             (($htype)${setEval.primitiveTerm}).add(${itemEval.primitiveTerm});
+           }
+           boolean ${ev.nullTerm} = false;
+           ${htype} ${ev.primitiveTerm} = ($htype)${setEval.primitiveTerm};
+         """
+      case _ => super.genCode(ctx, ev)
     }
   }
 
@@ -122,6 +154,23 @@ case class CombineSets(left: Expression, right: Expression) extends BinaryExpres
       }
     } else {
       null
+    }
+  }
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): Code = {
+    val elementType = left.dataType.asInstanceOf[OpenHashSetUDT].elementType
+    elementType match {
+      case IntegerType | LongType =>
+        val leftEval = left.gen(ctx)
+        val rightEval = right.gen(ctx)
+        val htype = ctx.hashSetForType(elementType)
+
+        leftEval.code + rightEval.code + s"""
+          boolean ${ev.nullTerm} = false;
+          ${htype} ${ev.primitiveTerm} = (${htype})${leftEval.primitiveTerm};
+          ${ev.primitiveTerm}.union((${htype})${rightEval.primitiveTerm});
+        """
+      case _ => super.genCode(ctx, ev)
     }
   }
 }

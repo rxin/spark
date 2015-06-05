@@ -21,6 +21,7 @@ import java.sql.{Date, Timestamp}
 import java.text.{DateFormat, SimpleDateFormat}
 
 import org.apache.spark.Logging
+import org.apache.spark.sql.catalyst.expressions.codegen.{GeneratedExpressionCode, Code, CodeGenContext}
 import org.apache.spark.sql.catalyst.util.DateUtils
 import org.apache.spark.sql.types._
 
@@ -432,6 +433,39 @@ case class Cast(child: Expression, dataType: DataType) extends UnaryExpression w
   override def eval(input: Row): Any = {
     val evaluated = child.eval(input)
     if (evaluated == null) null else cast(evaluated)
+  }
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): Code = this match {
+
+    case Cast(child @ BinaryType(), StringType) =>
+      castOrNull (ctx, ev, c =>
+        s"new ${ctx.stringType}().set($c)")
+
+    case Cast(child @ DateType(), StringType) =>
+      castOrNull(ctx, ev, c =>
+        s"""new ${ctx.stringType}().set(
+                org.apache.spark.sql.catalyst.util.DateUtils.toString($c))""")
+
+    case Cast(child @ BooleanType(), dt: NumericType) if !dt.isInstanceOf[DecimalType] =>
+      castOrNull(ctx, ev, c => s"(${ctx.primitiveType(dt)})($c?1:0)")
+
+    case Cast(child @ DecimalType(), IntegerType) =>
+      castOrNull(ctx, ev, c => s"($c).toInt()")
+
+    case Cast(child @ DecimalType(), dt: NumericType) if !dt.isInstanceOf[DecimalType] =>
+      castOrNull(ctx, ev, c => s"($c).to${ctx.boxedType(dt)}()")
+
+    case Cast(child @ NumericType(), dt: NumericType) if !dt.isInstanceOf[DecimalType] =>
+      castOrNull(ctx, ev, c => s"(${ctx.primitiveType(dt)})($c)")
+
+    // Special handling required for timestamps in hive test cases since the toString function
+    // does not match the expected output.
+    case Cast(e, StringType) if e.dataType != TimestampType =>
+      castOrNull(ctx, ev, c =>
+        s"new ${ctx.stringType}().set(String.valueOf($c))")
+
+    case other =>
+      super.genCode(ctx, ev)
   }
 }
 

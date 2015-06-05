@@ -17,6 +17,7 @@
 
 package org.apache.spark.sql.catalyst.expressions
 
+import org.apache.spark.sql.catalyst.expressions.codegen.{GeneratedExpressionCode, Code, CodeGenContext}
 import org.apache.spark.sql.catalyst.trees
 import org.apache.spark.sql.catalyst.analysis.UnresolvedException
 import org.apache.spark.sql.types.DataType
@@ -51,6 +52,25 @@ case class Coalesce(children: Seq[Expression]) extends Expression {
     }
     result
   }
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): Code = {
+    s"""
+      boolean ${ev.nullTerm} = true;
+      ${ctx.primitiveType(dataType)} ${ev.primitiveTerm} = ${ctx.defaultValue(dataType)};
+    """ +
+    children.map { e =>
+      val eval = e.gen(ctx)
+      s"""
+        if(${ev.nullTerm}) {
+          ${eval.code}
+          if(!${eval.nullTerm}) {
+            ${ev.nullTerm} = false;
+            ${ev.primitiveTerm} = ${eval.primitiveTerm};
+          }
+        }
+      """
+    }.mkString("\n")
+  }
 }
 
 case class IsNull(child: Expression) extends Predicate with trees.UnaryNode[Expression] {
@@ -59,6 +79,14 @@ case class IsNull(child: Expression) extends Predicate with trees.UnaryNode[Expr
 
   override def eval(input: Row): Any = {
     child.eval(input) == null
+  }
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): Code = {
+    val eval = child.gen(ctx)
+    eval.code + s"""
+      final boolean ${ev.nullTerm} = false;
+      final boolean ${ev.primitiveTerm} = ${eval.nullTerm};
+    """
   }
 
   override def toString: String = s"IS NULL $child"
@@ -71,6 +99,14 @@ case class IsNotNull(child: Expression) extends Predicate with trees.UnaryNode[E
 
   override def eval(input: Row): Any = {
     child.eval(input) != null
+  }
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): Code = {
+    val eval = child.gen(ctx)
+    eval.code + s"""
+      boolean ${ev.nullTerm} = false;
+      boolean ${ev.primitiveTerm} = !${eval.nullTerm};
+    """
   }
 }
 
@@ -94,5 +130,26 @@ case class AtLeastNNonNulls(n: Int, children: Seq[Expression]) extends Predicate
       i += 1
     }
     numNonNulls >= n
+  }
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): Code = {
+    val nonnull = ctx.freshName("nonnull")
+    val code = children.map { e =>
+      val eval = e.gen(ctx)
+      s"""
+        if($nonnull < $n) {
+          ${eval.code}
+          if(!${eval.nullTerm}) {
+            $nonnull += 1;
+          }
+        }
+      """
+    }.mkString("\n")
+    s"""
+      int $nonnull = 0;
+      $code
+      boolean ${ev.nullTerm} = false;
+      boolean ${ev.primitiveTerm} = $nonnull >= $n;
+     """
   }
 }

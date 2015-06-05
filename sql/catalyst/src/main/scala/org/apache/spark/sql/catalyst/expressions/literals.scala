@@ -20,6 +20,7 @@ package org.apache.spark.sql.catalyst.expressions
 import java.sql.{Date, Timestamp}
 
 import org.apache.spark.sql.catalyst.CatalystTypeConverters
+import org.apache.spark.sql.catalyst.expressions.codegen.{Code, CodeGenContext, GeneratedExpressionCode}
 import org.apache.spark.sql.catalyst.util.DateUtils
 import org.apache.spark.sql.types._
 
@@ -79,6 +80,43 @@ case class Literal protected (value: Any, dataType: DataType) extends LeafExpres
   override def toString: String = if (value != null) value.toString else "null"
 
   override def eval(input: Row): Any = value
+
+  override def genCode(ctx: CodeGenContext, ev: GeneratedExpressionCode): Code = {
+    if (value == null) {
+      s"""
+          final boolean ${ev.nullTerm} = true;
+          ${ctx.primitiveType(dataType)} ${ev.primitiveTerm} = ${ctx.defaultValue(dataType)};
+        """
+    } else {
+      dataType match {
+        case StringType =>
+          val v = value.asInstanceOf[UTF8String]
+          val arr = s"new byte[]{${v.getBytes.map(_.toString).mkString(", ")}}"
+          s"""
+            final boolean ${ev.nullTerm} = false;
+            ${ctx.stringType} ${ev.primitiveTerm} = new ${ctx.stringType}().set(${arr});
+           """
+        case FloatType =>
+          s"""
+            final boolean ${ev.nullTerm} = false;
+            float ${ev.primitiveTerm} = ${value}f;
+           """
+        case dt: DecimalType =>
+          s"""
+            final boolean ${ev.nullTerm} = false;
+            ${ctx.primitiveType(dt)} ${ev.primitiveTerm} =
+              new ${ctx.primitiveType(dt)}().set($value);
+           """
+        case dt: NumericType =>
+          s"""
+            final boolean ${ev.nullTerm} = false;
+            ${ctx.primitiveType(dataType)} ${ev.primitiveTerm} = $value;
+           """
+        case other =>
+          super.genCode(ctx, ev)
+      }
+    }
+  }
 }
 
 // TODO: Specialize
