@@ -18,10 +18,9 @@
 package org.apache.spark.sql.catalyst.expressions
 
 import org.apache.spark.SparkFunSuite
-import org.apache.spark.sql.catalyst.expressions.mathfuncs._
 import org.apache.spark.sql.types.DoubleType
 
-class MathExpressionSuite extends SparkFunSuite with ExpressionEvalHelper {
+class MathFunctionsSuite extends SparkFunSuite with ExpressionEvalHelper {
 
   /**
    * Used for testing unary math expressions.

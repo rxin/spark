@@ -17,10 +17,13 @@
 
 package org.apache.spark.sql.catalyst.expressions
 
+import java.sql.{Date, Timestamp}
+
 import scala.collection.immutable.HashSet
 
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.catalyst.dsl.expressions._
+import org.apache.spark.sql.catalyst.util.DateUtils
 import org.apache.spark.sql.types.{IntegerType, BooleanType}
 
 
@@ -163,5 +166,14 @@ class PredicateSuite extends SparkFunSuite with ExpressionEvalHelper {
     checkEvaluation(c3 <=> c5, true, row)
     checkEvaluation(Literal(true) <=> Literal.create(null, BooleanType), false, row)
     checkEvaluation(Literal.create(null, BooleanType) <=> Literal(true), false, row)
+
+    val d1 = DateUtils.fromJavaDate(Date.valueOf("1970-01-01"))
+    val d2 = DateUtils.fromJavaDate(Date.valueOf("1970-01-02"))
+    checkEvaluation(Literal(d1) < Literal(d2), true)
+
+    val ts1 = new Timestamp(12)
+    val ts2 = new Timestamp(123)
+    checkEvaluation(Literal("ab") < Literal("abc"), true)
+    checkEvaluation(Literal(ts1) < Literal(ts2), true)
   }
 }

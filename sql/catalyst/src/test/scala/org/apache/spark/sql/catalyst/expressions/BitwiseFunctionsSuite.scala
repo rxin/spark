@@ -22,7 +22,7 @@ import org.apache.spark.sql.catalyst.dsl.expressions._
 import org.apache.spark.sql.types._
 
 
-class BitwiseExpressionSuite extends SparkFunSuite with ExpressionEvalHelper {
+class BitwiseFunctionsSuite extends SparkFunSuite with ExpressionEvalHelper {
 
   test("Bitwise operations") {
     val row = create_row(1, 2, 3, null)

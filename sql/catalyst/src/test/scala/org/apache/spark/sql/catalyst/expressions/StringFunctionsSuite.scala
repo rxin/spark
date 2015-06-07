@@ -22,7 +22,7 @@ import org.apache.spark.sql.catalyst.dsl.expressions._
 import org.apache.spark.sql.types.{IntegerType, StringType}
 
 
-class StringExpressionSuite extends SparkFunSuite with ExpressionEvalHelper {
+class StringFunctionsSuite extends SparkFunSuite with ExpressionEvalHelper {
 
   test("StringComparison") {
     val row = create_row("abc", null)
