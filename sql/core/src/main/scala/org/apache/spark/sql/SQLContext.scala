@@ -971,6 +971,31 @@ class SQLContext(@transient val sparkContext: SparkContext)
     protected[sql] lazy val conf: SQLConf = new SQLConf
   }
 
+  protected[sql] class LocalQueryExecution(val logical: LogicalPlan) {
+    def assertAnalyzed(): Unit = analyzer.checkAnalysis(analyzed)
+
+    lazy val analyzed: LogicalPlan = analyzer.execute(logical)
+    lazy val withCachedData: LogicalPlan = {
+      assertAnalyzed()
+      cacheManager.useCachedData(analyzed)
+    }
+    lazy val optimizedPlan: LogicalPlan = optimizer.execute(withCachedData)
+
+    // TODO: Don't just pick the first one...
+    lazy val localPlan: execution.local.LocalNode = {
+      new execution.local.LocalPlanner().plan(optimizedPlan).next()
+    }
+
+    // executedPlan should not be used to initialize any SparkPlan. It should be
+    // only used for execution.
+    lazy val executedPlan: execution.local.LocalNode = localPlan
+
+    /** Internal version of the RDD. Avoids copies and has no schema */
+    lazy val toRdd: RDD[Row] = {
+      sparkContext.parallelize(executedPlan.collect())
+    }
+  }
+
   /**
    * :: DeveloperApi ::
    * The primary workflow for executing relational queries using Spark.  Designed to allow easy

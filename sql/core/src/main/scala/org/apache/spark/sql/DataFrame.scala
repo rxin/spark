@@ -1383,6 +1383,10 @@ class DataFrame private[sql](
     queryExecution.executedPlan.executeCollect()
   }
 
+  def collectLocal(): Seq[Row] = {
+    new sqlContext.LocalQueryExecution(logicalPlan).toRdd.collect()
+  }
+
   /**
    * Returns a Java list that contains all of [[Row]]s in this [[DataFrame]].
    * @group action
