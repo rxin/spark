@@ -33,8 +33,6 @@ class StreamFrame {
 
   /////////////////////////////////////////////////////////////////////
   // Pipelined operations:
-  // - works only within a bounded dataset.
-  // - throws runtime exception if called on an unbounded dataset.
   /////////////////////////////////////////////////////////////////////
 
   def select(cols: Column*): StreamFrame = ???
