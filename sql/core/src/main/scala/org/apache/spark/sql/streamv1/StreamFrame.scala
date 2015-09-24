@@ -40,8 +40,6 @@ class StreamFrame {
 
   /////////////////////////////////////////////////////////////////////
   // Pipelined operations:
-  // - works only within a bounded dataset.
-  // - throws runtime exception if called on an unbounded dataset.
   /////////////////////////////////////////////////////////////////////
 
   def select(cols: Column*): StreamFrame = ???
@@ -60,6 +58,7 @@ class StreamFrame {
 
   /////////////////////////////////////////////////////////////////////
   // Blocking operations: works only within a window
+  // - throws runtime exception if called on a non-windowed stream.
   /////////////////////////////////////////////////////////////////////
 
   def agg(exprs: Column*): StreamFrame = ???
