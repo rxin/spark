@@ -57,8 +57,7 @@ class StreamFrame {
   def write: StreamFrameWriter = ???
 
   /////////////////////////////////////////////////////////////////////
-  // Blocking operations: works only within a window
-  // - throws runtime exception if called on a non-windowed stream.
+  // Blocking operations (see alternative A1 and A2)
   /////////////////////////////////////////////////////////////////////
 
   def agg(exprs: Column*): StreamFrame = ???
