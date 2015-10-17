@@ -17,6 +17,8 @@
 
 package org.apache.spark.sql.catalyst.trees
 
+import scala.collection.mutable.ArrayBuffer
+
 import org.apache.spark.sql.catalyst.errors._
 import org.apache.spark.sql.types.DataType
 
@@ -133,6 +135,18 @@ abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product {
     val lifted = pf.lift
     foreach(node => lifted(node).foreach(ret.+=))
     ret
+  }
+
+  def collectFrontier[B](pf: PartialFunction[BaseType, B]): Seq[B] = {
+    def collectFrontier(node: BaseType, ret: ArrayBuffer[B]): Seq[B] = {
+      if (pf.isDefinedAt(node)) {
+        ret += pf.apply(node)
+      } else {
+        node.children.foreach(child => collectFrontier(child, ret))
+      }
+      ret
+    }
+    collectFrontier(this, new ArrayBuffer[B])
   }
 
   /**

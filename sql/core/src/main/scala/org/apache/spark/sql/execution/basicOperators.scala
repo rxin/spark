@@ -22,6 +22,7 @@ import org.apache.spark.shuffle.sort.SortShuffleManager
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.physical._
+import org.apache.spark.sql.execution.local.{FilterNode, LocalNode, ProjectNode}
 import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.util.MutablePair
 import org.apache.spark.util.random.PoissonSampler
@@ -62,6 +63,7 @@ case class TungstenProject(projectList: Seq[NamedExpression], child: SparkPlan) 
   override def outputsUnsafeRows: Boolean = true
   override def canProcessUnsafeRows: Boolean = true
   override def canProcessSafeRows: Boolean = true
+  override def isLocal: Boolean = true
 
   override def output: Seq[Attribute] = projectList.map(_.toAttribute)
 
@@ -83,11 +85,17 @@ case class TungstenProject(projectList: Seq[NamedExpression], child: SparkPlan) 
   }
 
   override def outputOrdering: Seq[SortOrder] = child.outputOrdering
+
+  override def toLocalIterator(inputs: Map[Long, Iterator[InternalRow]]): LocalNode = {
+    ProjectNode(sqlContext.conf, projectList, child.toLocalIterator(inputs))
+  }
 }
 
 
 case class Filter(condition: Expression, child: SparkPlan) extends UnaryNode {
   override def output: Seq[Attribute] = child.output
+
+  override def isLocal: Boolean = true
 
   private[sql] override lazy val metrics = Map(
     "numInputRows" -> SQLMetrics.createLongMetric(sparkContext, "number of input rows"),
@@ -114,6 +122,10 @@ case class Filter(condition: Expression, child: SparkPlan) extends UnaryNode {
   override def canProcessUnsafeRows: Boolean = true
 
   override def canProcessSafeRows: Boolean = true
+
+  override def toLocalIterator(inputs: Map[Long, Iterator[InternalRow]]): LocalNode = {
+    FilterNode(sqlContext.conf, condition, child.toLocalIterator(inputs))
+  }
 }
 
 /**

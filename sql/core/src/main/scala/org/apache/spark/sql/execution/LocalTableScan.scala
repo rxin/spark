@@ -20,6 +20,7 @@ package org.apache.spark.sql.execution
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.execution.local.{LocalNode, SeqScanNode}
 
 
 /**
@@ -31,6 +32,8 @@ private[sql] case class LocalTableScan(
 
   private lazy val rdd = sqlContext.sparkContext.parallelize(rows)
 
+  override def isLocal: Boolean = true
+
   protected override def doExecute(): RDD[InternalRow] = rdd
 
   override def executeCollect(): Array[InternalRow] = {
@@ -39,5 +42,9 @@ private[sql] case class LocalTableScan(
 
   override def executeTake(limit: Int): Array[InternalRow] = {
     rows.take(limit).toArray
+  }
+
+  override def toLocalIterator(inputs: Map[Long, Iterator[InternalRow]]): LocalNode = {
+    SeqScanNode(sqlContext.conf, output, rows)
   }
 }

@@ -47,9 +47,13 @@ class QueryExecution(val sqlContext: SQLContext, val logical: LogicalPlan) {
     SparkPlan.currentContext.set(sqlContext)
     planner.plan(optimizedPlan).next()
   }
+
+  // TODO: pick a better name
+  lazy val sparkPlan1: SparkPlan = prepareForExecution.execute(sparkPlan)
+
   // executedPlan should not be used to initialize any SparkPlan. It should be
   // only used for execution.
-  lazy val executedPlan: SparkPlan = prepareForExecution.execute(sparkPlan)
+  lazy val executedPlan: SparkPlan = QueryFragmentBuilder.execute(sparkPlan1)
 
   /** Internal version of the RDD. Avoids copies and has no schema */
   lazy val toRdd: RDD[InternalRow] = executedPlan.execute()

@@ -17,7 +17,7 @@
 
 package org.apache.spark.sql.execution
 
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.{AtomicLong, AtomicBoolean}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -31,17 +31,23 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.codegen._
 import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.catalyst.plans.physical._
+import org.apache.spark.sql.execution.local.LocalNode
 import org.apache.spark.sql.execution.metric.{LongSQLMetric, SQLMetric}
 import org.apache.spark.sql.types.DataType
 
 object SparkPlan {
   protected[sql] val currentContext = new ThreadLocal[SQLContext]()
+
+  private val idGenerator = new AtomicLong
 }
 
 /**
  * The base class for physical operators.
  */
 abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializable {
+
+  /** An id unique to this plan, within the same process. */
+  val id: Long = SparkPlan.idGenerator.incrementAndGet()
 
   /**
    * A handle to the SQL Context that was used to create this plan.   Since many operators need
@@ -116,6 +122,12 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
   def canProcessSafeRows: Boolean = true
 
   /**
+   * Specifies whether this operator can be executed locally, i.e. accepts an input iterator
+   * and produces an output iterator.
+   */
+  def isLocal: Boolean = false
+
+  /**
    * Returns the result of this query as an RDD[InternalRow] by delegating to doExecute
    * after adding query plan information to created RDDs for visualization.
    * Concrete implementations of SparkPlan should override doExecute instead.
@@ -164,6 +176,10 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
    * Produces the result of the query as an RDD[InternalRow]
    */
   protected def doExecute(): RDD[InternalRow]
+
+  def toLocalIterator(inputs: Map[Long, Iterator[InternalRow]]): LocalNode = {
+    throw new UnsupportedOperationException
+  }
 
   /**
    * Runs this query returning the result as an array.

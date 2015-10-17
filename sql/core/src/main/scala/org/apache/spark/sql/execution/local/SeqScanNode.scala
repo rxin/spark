@@ -31,6 +31,7 @@ case class SeqScanNode(conf: SQLConf, output: Seq[Attribute], data: Seq[Internal
   private[this] var currentRow: InternalRow = _
 
   override def open(): Unit = {
+    println("we are running local table scan!!!!!!!!!!!!!!!!!!!!!!!!!")
     iterator = data.iterator
   }
 
