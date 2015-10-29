@@ -19,6 +19,9 @@ package org.apache.spark.sql.execution
 
 import java.util.concurrent.atomic.AtomicBoolean
 
+import org.apache.spark.sql.execution.local.{IteratorScanNode, LocalNode}
+import org.apache.spark.util.CompletionIterator
+
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.Logging
@@ -133,7 +136,8 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
       assert(!hasUnsafeInputs || canProcessUnsafeRows,
         "Operator will receive unsafe rows as input but cannot process unsafe rows")
     }
-    RDDOperationScope.withScope(sparkContext, nodeName, false, true) {
+
+    RDDOperationScope.withScope(sparkContext, nodeName, allowNesting = false, ignoreParent = true) {
       prepare()
       doExecute()
     }
@@ -317,6 +321,14 @@ abstract class SparkPlan extends QueryPlan[SparkPlan] with Logging with Serializ
     newOrdering(order, Seq.empty)
   }
 }
+
+private[sql] case class BuildingFragment(
+    inputs: Array[FragmentInput],
+    currentTerminalNode: LocalNode)
+
+private[sql] case class FragmentInput(
+    rdd: RDD[InternalRow],
+    iteratorScan: IteratorScanNode)
 
 private[sql] trait LeafNode extends SparkPlan {
   override def children: Seq[SparkPlan] = Nil
