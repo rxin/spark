@@ -17,15 +17,14 @@
 
 package org.apache.spark.sql.execution.local
 
-import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 
 /**
  * An operator that scans some local data collection in the form of Scala Seq.
  */
-case class SeqScanNode(conf: SQLConf, output: Seq[Attribute], data: Seq[InternalRow])
-  extends LeafLocalNode(conf) {
+case class SeqScanNode(output: Seq[Attribute], data: Seq[InternalRow])
+  extends LeafLocalNode {
 
   private[this] var iterator: Iterator[InternalRow] = _
   private[this] var currentRow: InternalRow = _

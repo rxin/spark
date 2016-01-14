@@ -17,8 +17,6 @@
 
 package org.apache.spark.sql.execution.local
 
-import org.apache.spark.sql.SQLConf
-import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.execution.joins.{HashedRelation, BuildLeft, BuildRight, BuildSide}
 
@@ -27,13 +25,12 @@ import org.apache.spark.sql.execution.joins.{HashedRelation, BuildLeft, BuildRig
  * `buildSide`. The actual work of this node is defined in [[HashJoinNode]].
  */
 case class BinaryHashJoinNode(
-    conf: SQLConf,
     leftKeys: Seq[Expression],
     rightKeys: Seq[Expression],
     buildSide: BuildSide,
     left: LocalNode,
     right: LocalNode)
-  extends BinaryLocalNode(conf) with HashJoinNode {
+  extends BinaryLocalNode with HashJoinNode {
 
   protected override val (streamedNode, streamedKeys) = buildSide match {
     case BuildLeft => (right, rightKeys)

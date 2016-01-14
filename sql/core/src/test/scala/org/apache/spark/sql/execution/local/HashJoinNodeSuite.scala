@@ -22,7 +22,7 @@ import org.mockito.Mockito.{mock, when}
 import org.apache.spark.broadcast.TorrentBroadcast
 import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.dsl.expressions._
-import org.apache.spark.sql.catalyst.expressions.{InterpretedMutableProjection, UnsafeProjection, Expression}
+import org.apache.spark.sql.catalyst.expressions.{UnsafeProjection, Expression}
 import org.apache.spark.sql.execution.joins.{HashedRelation, BuildLeft, BuildRight, BuildSide}
 
 class HashJoinNodeSuite extends LocalNodeTest {
@@ -66,7 +66,7 @@ class HashJoinNodeSuite extends LocalNodeTest {
       val rightNode = new DummyNode(joinNicknameAttributes, rightInput)
       val makeBinaryHashJoinNode = (node1: LocalNode, node2: LocalNode) => {
         val binaryHashJoinNode =
-          BinaryHashJoinNode(conf, Seq('id1), Seq('id2), buildSide, node1, node2)
+          BinaryHashJoinNode(Seq('id1), Seq('id2), buildSide, node1, node2)
         resolveExpressions(binaryHashJoinNode)
       }
       val makeBroadcastJoinNode = (node1: LocalNode, node2: LocalNode) => {
@@ -86,7 +86,6 @@ class HashJoinNodeSuite extends LocalNodeTest {
 
         val hashJoinNode =
           BroadcastHashJoinNode(
-            conf,
             streamedKeys,
             streamedNode,
             buildSide,
@@ -100,8 +99,7 @@ class HashJoinNodeSuite extends LocalNodeTest {
         .map { case (k, v) => (k, v, k, rightInputMap(k)) }
 
       Seq(makeBinaryHashJoinNode, makeBroadcastJoinNode).foreach { makeNode =>
-        val makeUnsafeNode = wrapForUnsafe(makeNode)
-        val hashJoinNode = makeUnsafeNode(leftNode, rightNode)
+        val hashJoinNode = makeNode(leftNode, rightNode)
 
         val actualOutput = hashJoinNode.collect().map { row =>
           // (id, name, id, nickname)

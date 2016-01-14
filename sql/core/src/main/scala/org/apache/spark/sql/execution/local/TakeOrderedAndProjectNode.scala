@@ -17,17 +17,15 @@
 
 package org.apache.spark.sql.execution.local
 
-import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.util.BoundedPriorityQueue
 
 case class TakeOrderedAndProjectNode(
-    conf: SQLConf,
     limit: Int,
     sortOrder: Seq[SortOrder],
     projectList: Option[Seq[NamedExpression]],
-    child: LocalNode) extends UnaryLocalNode(conf) {
+    child: LocalNode) extends UnaryLocalNode {
 
   private[this] var projection: Option[Projection] = _
   private[this] var ord: InterpretedOrdering = _

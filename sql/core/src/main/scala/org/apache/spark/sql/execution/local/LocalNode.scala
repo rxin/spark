@@ -33,7 +33,7 @@ import org.apache.spark.sql.types.StructType
  * Before consuming the iterator, open function must be called.
  * After consuming the iterator, close function must be called.
  */
-abstract class LocalNode(conf: SQLConf) extends QueryPlan[LocalNode] with Logging {
+abstract class LocalNode extends QueryPlan[LocalNode] with Logging {
 
   private[this] lazy val isTesting: Boolean = sys.props.contains("spark.testing")
 
@@ -127,19 +127,19 @@ abstract class LocalNode(conf: SQLConf) extends QueryPlan[LocalNode] with Loggin
 }
 
 
-abstract class LeafLocalNode(conf: SQLConf) extends LocalNode(conf) {
+abstract class LeafLocalNode extends LocalNode {
   override def children: Seq[LocalNode] = Seq.empty
 }
 
 
-abstract class UnaryLocalNode(conf: SQLConf) extends LocalNode(conf) {
+abstract class UnaryLocalNode extends LocalNode {
 
   def child: LocalNode
 
   override def children: Seq[LocalNode] = Seq(child)
 }
 
-abstract class BinaryLocalNode(conf: SQLConf) extends LocalNode(conf) {
+abstract class BinaryLocalNode extends LocalNode {
 
   def left: LocalNode
 

@@ -52,10 +52,9 @@ class NestedLoopJoinNodeSuite extends LocalNodeTest {
       val cond = 'id1 === 'id2
       val makeNode = (node1: LocalNode, node2: LocalNode) => {
         resolveExpressions(
-          new NestedLoopJoinNode(conf, node1, node2, buildSide, joinType, Some(cond)))
+          new NestedLoopJoinNode(node1, node2, buildSide, joinType, Some(cond)))
       }
-      val makeUnsafeNode = wrapForUnsafe(makeNode)
-      val hashJoinNode = makeUnsafeNode(leftNode, rightNode)
+      val hashJoinNode = makeNode(leftNode, rightNode)
       val expectedOutput = generateExpectedOutput(leftInput, rightInput, joinType)
       val actualOutput = hashJoinNode.collect().map { row =>
         // (

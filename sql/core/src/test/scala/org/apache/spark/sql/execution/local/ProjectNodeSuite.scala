@@ -30,7 +30,7 @@ class ProjectNodeSuite extends LocalNodeTest {
   private def testProject(inputData: Array[(Int, Int, String)] = Array.empty): Unit = {
     val inputNode = new DummyNode(pieAttributes, inputData)
     val columns = Seq[NamedExpression](inputNode.output(0), inputNode.output(2))
-    val projectNode = new ProjectNode(conf, columns, inputNode)
+    val projectNode = new ProjectNode(columns, inputNode)
     val expectedOutput = inputData.map { case (id, age, name) => (id, name) }
     val actualOutput = projectNode.collect().map { case row =>
       (row.getInt(0), row.getString(1))

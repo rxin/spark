@@ -38,21 +38,6 @@ class LocalNodeTest extends SparkFunSuite {
     AttributeReference("nickname", StringType)())
 
   /**
-   * Wrap a function processing two [[LocalNode]]s such that:
-   *   (1) all input rows are automatically converted to unsafe rows
-   *   (2) all output rows are automatically converted back to safe rows
-   */
-  protected def wrapForUnsafe(
-      f: (LocalNode, LocalNode) => LocalNode): (LocalNode, LocalNode) => LocalNode = {
-    (left: LocalNode, right: LocalNode) => {
-      val _left = ConvertToUnsafeNode(conf, left)
-      val _right = ConvertToUnsafeNode(conf, right)
-      val r = f(_left, _right)
-      ConvertToSafeNode(conf, r)
-    }
-  }
-
-  /**
    * Recursively resolve all expressions in a [[LocalNode]] using the node's attributes.
    */
   protected def resolveExpressions(outputNode: LocalNode): LocalNode = {

@@ -17,15 +17,14 @@
 
 package org.apache.spark.sql.execution.local
 
-import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 
 case class ExpandNode(
-    conf: SQLConf,
     projections: Seq[Seq[Expression]],
     output: Seq[Attribute],
-    child: LocalNode) extends UnaryLocalNode(conf) {
+    child: LocalNode)
+  extends UnaryLocalNode {
 
   assert(projections.size > 0)
 

@@ -49,7 +49,9 @@ class QueryExecution(val sqlContext: SQLContext, val logical: LogicalPlan) {
 
   // executedPlan should not be used to initialize any SparkPlan. It should be
   // only used for execution.
-  lazy val executedPlan: SparkPlan = sqlContext.prepareForExecution.execute(sparkPlan)
+  lazy val executedPlan1: SparkPlan = sqlContext.prepareForExecution.execute(sparkPlan)
+
+  lazy val executedPlan: SparkPlan = sqlContext.convertToLocalNodes.execute(executedPlan1)
 
   /** Internal version of the RDD. Avoids copies and has no schema */
   lazy val toRdd: RDD[InternalRow] = executedPlan.execute()
@@ -75,6 +77,8 @@ class QueryExecution(val sqlContext: SQLContext, val logical: LogicalPlan) {
        |== Optimized Logical Plan ==
        |${stringOrError(optimizedPlan)}
        |== Physical Plan ==
+       |${stringOrError(executedPlan1)}
+       |== Local Plan ==
        |${stringOrError(executedPlan)}
     """.stripMargin.trim
   }

@@ -41,6 +41,7 @@ import org.apache.spark.sql.catalyst.rules.RuleExecutor
 import org.apache.spark.sql.catalyst.{InternalRow, ParserDialect, _}
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.datasources._
+import org.apache.spark.sql.execution.local.LocalNodeUtils
 import org.apache.spark.sql.execution.ui.{SQLListener, SQLTab}
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types._
@@ -903,9 +904,20 @@ class SQLContext private[sql](
    */
   @transient
   protected[sql] val prepareForExecution = new RuleExecutor[SparkPlan] {
-    val batches = Seq(
-      Batch("Add exchange", Once, EnsureRequirements(self))
-    )
+    override val batches = Batch("Add exchange", Once, EnsureRequirements(self)) :: Nil
+  }
+
+  @transient
+  protected[sql] val convertToLocalNodes = new RuleExecutor[SparkPlan] {
+    val batches = Batch("Local Fragments", FixedPoint(100), BuildFragment) :: Nil
+
+    object BuildFragment extends org.apache.spark.sql.catalyst.rules.Rule[SparkPlan] {
+      def apply(plan: SparkPlan): SparkPlan = plan transform {
+        case plan: SupportsLocalExecution =>
+          val newChildren = LocalNodeUtils.findFrontierNonLocalNodes(plan)
+          QueryFragment(plan.toLocalNode, newChildren)
+      }
+    }
   }
 
   @deprecated("use org.apache.spark.sql.QueryExecution", "1.6.0")

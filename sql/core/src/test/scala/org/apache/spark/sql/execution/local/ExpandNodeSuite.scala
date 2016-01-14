@@ -25,7 +25,7 @@ class ExpandNodeSuite extends LocalNodeTest {
   private def testExpand(inputData: Array[(Int, Int)] = Array.empty): Unit = {
     val inputNode = new DummyNode(kvIntAttributes, inputData)
     val projections = Seq(Seq('k + 'v, 'k - 'v), Seq('k * 'v, 'k / 'v))
-    val expandNode = new ExpandNode(conf, projections, inputNode.output, inputNode)
+    val expandNode = new ExpandNode(projections, inputNode.output, inputNode)
     val resolvedNode = resolveExpressions(expandNode)
     val expectedOutput = {
       val firstHalf = inputData.map { case (k, v) => (k + v, k - v) }

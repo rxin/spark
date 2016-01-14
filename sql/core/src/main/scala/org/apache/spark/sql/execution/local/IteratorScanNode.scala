@@ -17,24 +17,38 @@
 
 package org.apache.spark.sql.execution.local
 
-import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Attribute, Projection, UnsafeProjection}
+import org.apache.spark.sql.catalyst.expressions.Attribute
 
-case class ConvertToUnsafeNode(conf: SQLConf, child: LocalNode) extends UnaryLocalNode(conf) {
+/**
+ * An operator that scans data from an Scala Iterator.
+ */
+case class IteratorScanNode(output: Seq[Attribute]) extends LeafLocalNode {
 
-  override def output: Seq[Attribute] = child.output
+  private[this] var iterator: Iterator[InternalRow] = _
+  private[this] var currentRow: InternalRow = _
 
-  private[this] var convertToUnsafe: Projection = _
-
-  override def open(): Unit = {
-    child.open()
-    convertToUnsafe = UnsafeProjection.create(child.schema)
+  def withIterator(inputIterator: Iterator[InternalRow]): this.type = {
+    iterator = inputIterator
+    this
   }
 
-  override def next(): Boolean = child.next()
+  override def open(): Unit = {
+    // Do nothing
+  }
 
-  override def fetch(): InternalRow = convertToUnsafe(child.fetch())
+  override def next(): Boolean = {
+    if (iterator.hasNext) {
+      currentRow = iterator.next()
+      true
+    } else {
+      false
+    }
+  }
 
-  override def close(): Unit = child.close()
+  override def fetch(): InternalRow = currentRow
+
+  override def close(): Unit = {
+    // Do nothing
+  }
 }

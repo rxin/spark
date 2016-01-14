@@ -15,26 +15,24 @@
 * limitations under the License.
 */
 
-package org.apache.spark.sql.execution.local
+package org.apache.spark.sql
 
-import org.apache.spark.sql.SQLConf
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Attribute, FromUnsafeProjection, Projection}
+import org.scalatest.BeforeAndAfter
 
-case class ConvertToSafeNode(conf: SQLConf, child: LocalNode) extends UnaryLocalNode(conf) {
+import org.apache.spark.sql.test.SharedSQLContext
 
-  override def output: Seq[Attribute] = child.output
 
-  private[this] var convertToSafe: Projection = _
+class LocalPlanSuite extends QueryTest with BeforeAndAfter with SharedSQLContext {
 
-  override def open(): Unit = {
-    child.open()
-    convertToSafe = FromUnsafeProjection(child.schema)
+  import testImplicits._
+
+  test("plan test") {
+
+    sqlContext.range(100).select(('id + 1).as('id)).filter('id > 10).explain(true)
+
+    sqlContext.range(100).select(('id + 1).as('id)).repartition(10).filter('id > 10).explain(true)
+
+    sqlContext.range(100).select(('id + 5).as('id)).filter('id > 90).show(100)
   }
 
-  override def next(): Boolean = child.next()
-
-  override def fetch(): InternalRow = convertToSafe(child.fetch())
-
-  override def close(): Unit = child.close()
 }

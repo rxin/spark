@@ -17,7 +17,6 @@
 
 package org.apache.spark.sql.execution.local
 
-import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.{FullOuter, RightOuter, LeftOuter, JoinType}
@@ -25,12 +24,11 @@ import org.apache.spark.sql.execution.joins.{BuildLeft, BuildRight, BuildSide}
 import org.apache.spark.util.collection.{BitSet, CompactBuffer}
 
 case class NestedLoopJoinNode(
-    conf: SQLConf,
     left: LocalNode,
     right: LocalNode,
     buildSide: BuildSide,
     joinType: JoinType,
-    condition: Option[Expression]) extends BinaryLocalNode(conf) {
+    condition: Option[Expression]) extends BinaryLocalNode {
 
   override def output: Seq[Attribute] = {
     joinType match {

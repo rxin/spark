@@ -17,7 +17,6 @@
 
 package org.apache.spark.sql.execution.local
 
-import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
@@ -27,17 +26,16 @@ import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
  */
 private[local] case class DummyNode(
     output: Seq[Attribute],
-    relation: LocalRelation,
-    conf: SQLConf)
-  extends LocalNode(conf) {
+    relation: LocalRelation)
+  extends LocalNode {
 
   import DummyNode._
 
   private var index: Int = CLOSED
   private val input: Seq[InternalRow] = relation.data
 
-  def this(output: Seq[Attribute], data: Seq[Product], conf: SQLConf = new SQLConf) {
-    this(output, LocalRelation.fromProduct(output, data), conf)
+  def this(output: Seq[Attribute], data: Seq[Product]) {
+    this(output, LocalRelation.fromProduct(output, data))
   }
 
   def isOpen: Boolean = index != CLOSED

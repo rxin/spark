@@ -24,6 +24,7 @@ import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.codegen.GenerateUnsafeRowJoiner
 import org.apache.spark.sql.catalyst.plans.physical._
+import org.apache.spark.sql.execution.local._
 import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.sql.types.LongType
 import org.apache.spark.util.MutablePair
@@ -31,7 +32,8 @@ import org.apache.spark.util.random.PoissonSampler
 import org.apache.spark.{HashPartitioner, SparkEnv}
 
 
-case class Project(projectList: Seq[NamedExpression], child: SparkPlan) extends UnaryNode {
+case class Project(projectList: Seq[NamedExpression], child: SparkPlan)
+  extends UnaryNode with SupportsLocalExecution {
 
   override private[sql] lazy val metrics = Map(
     "numRows" -> SQLMetrics.createLongMetric(sparkContext, "number of rows"))
@@ -51,10 +53,20 @@ case class Project(projectList: Seq[NamedExpression], child: SparkPlan) extends 
   }
 
   override def outputOrdering: Seq[SortOrder] = child.outputOrdering
+
+  override def toLocalNode: LocalNode = {
+    val childLocal = child match {
+      case c: SupportsLocalExecution => c.toLocalNode
+      case _: SparkPlan => IteratorScanNode(child.output)
+    }
+    ProjectNode(projectList, childLocal)
+  }
 }
 
 
-case class Filter(condition: Expression, child: SparkPlan) extends UnaryNode {
+case class Filter(condition: Expression, child: SparkPlan)
+  extends UnaryNode with SupportsLocalExecution {
+
   override def output: Seq[Attribute] = child.output
 
   private[sql] override lazy val metrics = Map(
@@ -76,6 +88,14 @@ case class Filter(condition: Expression, child: SparkPlan) extends UnaryNode {
   }
 
   override def outputOrdering: Seq[SortOrder] = child.outputOrdering
+
+  override def toLocalNode: LocalNode = {
+    val childLocal = child match {
+      case c: SupportsLocalExecution => c.toLocalNode
+      case _: SparkPlan => IteratorScanNode(child.output)
+    }
+    FilterNode(condition, childLocal)
+  }
 }
 
 /**
@@ -183,6 +203,7 @@ case class Union(children: Seq[SparkPlan]) extends SparkPlan {
       }
     }
   }
+
   protected override def doExecute(): RDD[InternalRow] =
     sparkContext.union(children.map(_.execute()))
 }

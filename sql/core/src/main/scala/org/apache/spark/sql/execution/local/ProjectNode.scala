@@ -17,13 +17,12 @@
 
 package org.apache.spark.sql.execution.local
 
-import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{UnsafeProjection, Attribute, NamedExpression}
 
 
-case class ProjectNode(conf: SQLConf, projectList: Seq[NamedExpression], child: LocalNode)
-  extends UnaryLocalNode(conf) {
+case class ProjectNode(projectList: Seq[NamedExpression], child: LocalNode)
+  extends UnaryLocalNode {
 
   private[this] var project: UnsafeProjection = _
 

@@ -24,7 +24,7 @@ class UnionNodeSuite extends LocalNodeTest {
     val inputNodes = inputData.map { data =>
       new DummyNode(kvIntAttributes, data)
     }
-    val unionNode = new UnionNode(conf, inputNodes)
+    val unionNode = new UnionNode(inputNodes)
     val expectedOutput = inputData.flatten
     val actualOutput = unionNode.collect().map { case row =>
       (row.getInt(0), row.getInt(1))

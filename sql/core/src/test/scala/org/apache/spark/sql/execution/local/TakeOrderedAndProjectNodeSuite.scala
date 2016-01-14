@@ -35,7 +35,7 @@ class TakeOrderedAndProjectNodeSuite extends LocalNodeTest {
       val sortDirection = if (desc) Descending else Ascending
       val sortOrder = SortOrder(firstColumn, sortDirection)
       val takeOrderAndProjectNode = new TakeOrderedAndProjectNode(
-        conf, limit, Seq(sortOrder), Some(Seq(firstColumn)), inputNode)
+        limit, Seq(sortOrder), Some(Seq(firstColumn)), inputNode)
       val expectedOutput = inputData
         .map { case (k, _) => k }
         .sortBy { k => k * (if (desc) -1 else 1) }

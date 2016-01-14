@@ -30,7 +30,7 @@ class SampleNodeSuite extends LocalNodeTest {
     test(s"with$maybeOut replacement") {
       val inputData = (1 to 1000).map { i => (i, i) }.toArray
       val inputNode = new DummyNode(kvIntAttributes, inputData)
-      val sampleNode = new SampleNode(conf, lowerb, upperb, withReplacement, seed, inputNode)
+      val sampleNode = new SampleNode(lowerb, upperb, withReplacement, seed, inputNode)
       val sampler =
         if (withReplacement) {
           new PoissonSampler[(Int, Int)](upperb - lowerb, useGapSamplingIfPossible = false)

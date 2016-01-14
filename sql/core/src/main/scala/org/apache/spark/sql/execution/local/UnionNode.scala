@@ -21,7 +21,7 @@ import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 
-case class UnionNode(conf: SQLConf, children: Seq[LocalNode]) extends LocalNode(conf) {
+case class UnionNode(children: Seq[LocalNode]) extends LocalNode {
 
   override def output: Seq[Attribute] = children.head.output
 

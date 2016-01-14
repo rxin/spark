@@ -17,12 +17,11 @@
 
 package org.apache.spark.sql.execution.local
 
-import org.apache.spark.sql.SQLConf
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 
 
-case class LimitNode(conf: SQLConf, limit: Int, child: LocalNode) extends UnaryLocalNode(conf) {
+case class LimitNode(limit: Int, child: LocalNode) extends UnaryLocalNode {
 
   private[this] var count = 0
 
