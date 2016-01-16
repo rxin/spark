@@ -49,7 +49,7 @@ private[csv] class CSVRelation(
     case None => inferSchema(paths)
   }
 
-  private val params = new CSVParameters(parameters)
+  private val params = new CSVOptions(parameters)
 
   @transient
   private var cachedRDD: Option[RDD[String]] = None
@@ -159,7 +159,7 @@ object CSVRelation extends Logging {
       file: RDD[String],
       header: Seq[String],
       firstLine: String,
-      params: CSVParameters): RDD[Array[String]] = {
+      params: CSVOptions): RDD[Array[String]] = {
     // If header is set, make sure firstLine is materialized before sending to executors.
     file.mapPartitionsWithIndex({
       case (split, iter) => new BulkCsvReader(
@@ -175,7 +175,7 @@ object CSVRelation extends Logging {
       requiredColumns: Array[String],
       inputs: Array[FileStatus],
       sqlContext: SQLContext,
-      params: CSVParameters): RDD[Row] = {
+      params: CSVOptions): RDD[Row] = {
 
     val schemaFields = schema.fields
     val requiredFields = StructType(requiredColumns.map(schema(_))).fields
@@ -238,7 +238,7 @@ object CSVRelation extends Logging {
   }
 }
 
-private[sql] class CSVOutputWriterFactory(params: CSVParameters) extends OutputWriterFactory {
+private[sql] class CSVOutputWriterFactory(params: CSVOptions) extends OutputWriterFactory {
   override def newInstance(
       path: String,
       dataSchema: StructType,
@@ -251,7 +251,7 @@ private[sql] class CsvOutputWriter(
     path: String,
     dataSchema: StructType,
     context: TaskAttemptContext,
-    params: CSVParameters) extends OutputWriter with Logging {
+    params: CSVOptions) extends OutputWriter with Logging {
 
   // create the Generator without separator inserted between 2 records
   private[this] val text = new Text()

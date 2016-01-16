@@ -21,28 +21,7 @@ import java.nio.charset.Charset
 
 import org.apache.spark.Logging
 
-private[sql] case class CSVParameters(parameters: Map[String, String]) extends Logging {
-
-  private def getChar(paramName: String, default: Char): Char = {
-    val paramValue = parameters.get(paramName)
-    paramValue match {
-      case None => default
-      case Some(value) if value.length == 0 => '\u0000'
-      case Some(value) if value.length == 1 => value.charAt(0)
-      case _ => throw new RuntimeException(s"$paramName cannot be more than one character")
-    }
-  }
-
-  private def getBool(paramName: String, default: Boolean = false): Boolean = {
-    val param = parameters.getOrElse(paramName, default.toString)
-    if (param.toLowerCase() == "true") {
-      true
-    } else if (param.toLowerCase == "false") {
-      false
-    } else {
-      throw new Exception(s"$paramName flag can be true or false")
-    }
-  }
+case class CSVOptions(parameters: Map[String, String]) extends Logging {
 
   val delimiter = CSVTypeCast.toChar(parameters.getOrElse("delimiter", ","))
   val parseMode = parameters.getOrElse("mode", "PERMISSIVE")
@@ -80,6 +59,27 @@ private[sql] case class CSVParameters(parameters: Map[String, String]) extends L
   val isCommentSet = this.comment != '\u0000'
 
   val rowSeparator = "\n"
+
+  private def getChar(paramName: String, default: Char): Char = {
+    val paramValue = parameters.get(paramName)
+    paramValue match {
+      case None => default
+      case Some(value) if value.length == 0 => '\u0000'
+      case Some(value) if value.length == 1 => value.charAt(0)
+      case _ => throw new RuntimeException(s"$paramName cannot be more than one character")
+    }
+  }
+
+  private def getBool(paramName: String, default: Boolean = false): Boolean = {
+    val param = parameters.getOrElse(paramName, default.toString)
+    if (param.toLowerCase() == "true") {
+      true
+    } else if (param.toLowerCase == "false") {
+      false
+    } else {
+      throw new Exception(s"$paramName flag can be true or false")
+    }
+  }
 }
 
 private[csv] object ParseModes {

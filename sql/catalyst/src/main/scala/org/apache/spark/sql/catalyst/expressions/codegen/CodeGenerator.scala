@@ -461,6 +461,7 @@ class CodegenContext {
 }
 
 /**
+ * The outer
  * A wrapper for generated class, defines a `generate` method so that we can pass extra objects
  * into generated class.
  */
