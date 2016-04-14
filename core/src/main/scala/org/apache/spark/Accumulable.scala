@@ -200,14 +200,6 @@ class Accumulable[R, T] private (
     in.defaultReadObject()
     value_ = zero
     deserialized = true
-
-    // Automatically register the accumulator when it is deserialized with the task closure.
-    // This is for external accumulators and internal ones that do not represent task level
-    // metrics, e.g. internal SQL metrics, which are per-operator.
-    val taskContext = TaskContext.get()
-    if (taskContext != null) {
-      taskContext.registerAccumulator(this)
-    }
   }
 
   override def toString: String = if (value_ == null) "null" else value_.toString

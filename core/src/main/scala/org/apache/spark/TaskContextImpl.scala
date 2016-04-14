@@ -21,6 +21,7 @@ import java.util.Properties
 
 import scala.collection.mutable.ArrayBuffer
 
+import org.apache.spark.accumulator.NewAccumulator
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.internal.Logging
 import org.apache.spark.memory.TaskMemoryManager
@@ -36,7 +37,7 @@ private[spark] class TaskContextImpl(
     override val taskMemoryManager: TaskMemoryManager,
     localProperties: Properties,
     @transient private val metricsSystem: MetricsSystem,
-    initialAccumulators: Seq[Accumulator[_]] = InternalAccumulator.createAll())
+    initialAccumulators: Seq[NewAccumulator[_, _]] = InternalAccumulator.createAll())
   extends TaskContext
   with Logging {
 
@@ -126,7 +127,7 @@ private[spark] class TaskContextImpl(
   override def getMetricsSources(sourceName: String): Seq[Source] =
     metricsSystem.getSourcesByName(sourceName)
 
-  private[spark] override def registerAccumulator(a: Accumulable[_, _]): Unit = {
+  private[spark] def registerAccumulator(a: NewAccumulator[_, _]): Unit = {
     taskMetrics.registerAccumulator(a)
   }
 

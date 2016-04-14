@@ -19,8 +19,8 @@ package org.apache.spark.executor
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-
 import org.apache.spark._
+import org.apache.spark.accumulator.{LongAccumulator, NewAccumulator}
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.AccumulableInfo
@@ -46,7 +46,7 @@ import org.apache.spark.storage.{BlockId, BlockStatus}
  *                      these requirements.
  */
 @DeveloperApi
-class TaskMetrics private[spark] (initialAccums: Seq[Accumulator[_]]) extends Serializable {
+class TaskMetrics private[spark] (initialAccums: Seq[NewAccumulator[_, _]]) extends Serializable {
   import InternalAccumulator._
 
   // Needed for Java tests
@@ -57,7 +57,7 @@ class TaskMetrics private[spark] (initialAccums: Seq[Accumulator[_]]) extends Se
   /**
    * All accumulators registered with this task.
    */
-  private val accums = new ArrayBuffer[Accumulable[_, _]]
+  private val accums = new ArrayBuffer[NewAccumulator[_, _]]
   accums ++= initialAccums
 
   /**
@@ -169,7 +169,7 @@ class TaskMetrics private[spark] (initialAccums: Seq[Accumulator[_]]) extends Se
    * Get a Long accumulator from the given map by name, assuming it exists.
    * Note: this only searches the initial set of accumulators passed into the constructor.
    */
-  private[spark] def getAccum(name: String): Accumulator[Long] = {
+  private[spark] def getAccum(name: String): LongAccumulator = {
     TaskMetrics.getAccum[Long](initialAccumsMap, name)
   }
 
@@ -327,7 +327,7 @@ class TaskMetrics private[spark] (initialAccums: Seq[Accumulator[_]]) extends Se
    |        OTHER THINGS        |
    * ========================== */
 
-  private[spark] def registerAccumulator(a: Accumulable[_, _]): Unit = {
+  private[spark] def registerAccumulator(a: NewAccumulator[_, _]): Unit = {
     accums += a
   }
 
@@ -339,7 +339,7 @@ class TaskMetrics private[spark] (initialAccums: Seq[Accumulator[_]]) extends Se
    * not the aggregated value across multiple tasks.
    */
   def accumulatorUpdates(): Seq[AccumulableInfo] = {
-    accums.map { a => a.toInfo(Some(a.localValue), None) }
+    accums.map { a => a.toInfo(Some(a.value), None) }
   }
 
   // If we are reconstructing this TaskMetrics on the driver, some metrics may already be set.

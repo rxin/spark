@@ -20,6 +20,7 @@ package org.apache.spark
 import java.io.Serializable
 import java.util.Properties
 
+import org.apache.spark.accumulator.NewAccumulator
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.memory.TaskMemoryManager
@@ -189,6 +190,6 @@ abstract class TaskContext extends Serializable {
    * Register an accumulator that belongs to this task. Accumulators must call this method when
    * deserializing in executors.
    */
-  private[spark] def registerAccumulator(a: Accumulable[_, _]): Unit
+  private[spark] def registerAccumulator(a: NewAccumulator[_, _]): Unit
 
 }

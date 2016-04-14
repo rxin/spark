@@ -17,6 +17,7 @@
 
 package org.apache.spark
 
+import org.apache.spark.accumulator.NewAccumulator
 import org.apache.spark.storage.{BlockId, BlockStatus}
 
 
@@ -85,7 +86,7 @@ private[spark] object InternalAccumulator {
   /**
    * Create an internal [[Accumulator]] by name, which must begin with [[METRICS_PREFIX]].
    */
-  def create(name: String): Accumulator[_] = {
+  def create(name: String): NewAccumulator[_, _] = {
     require(name.startsWith(METRICS_PREFIX),
       s"internal accumulator name must start with '$METRICS_PREFIX': $name")
     getParam(name) match {
@@ -119,7 +120,7 @@ private[spark] object InternalAccumulator {
   /**
    * Accumulators for tracking internal metrics.
    */
-  def createAll(): Seq[Accumulator[_]] = {
+  def createAll(): Seq[NewAccumulator[_, _]] = {
     Seq[String](
       EXECUTOR_DESERIALIZE_TIME,
       EXECUTOR_RUN_TIME,
@@ -140,7 +141,7 @@ private[spark] object InternalAccumulator {
   /**
    * Accumulators for tracking shuffle read metrics.
    */
-  def createShuffleReadAccums(): Seq[Accumulator[_]] = {
+  def createShuffleReadAccums(): Seq[LongAccum] = {
     Seq[String](
       shuffleRead.REMOTE_BLOCKS_FETCHED,
       shuffleRead.LOCAL_BLOCKS_FETCHED,
@@ -153,7 +154,7 @@ private[spark] object InternalAccumulator {
   /**
    * Accumulators for tracking shuffle write metrics.
    */
-  def createShuffleWriteAccums(): Seq[Accumulator[_]] = {
+  def createShuffleWriteAccums(): Seq[NewAccumulator[_, _]] = {
     Seq[String](
       shuffleWrite.BYTES_WRITTEN,
       shuffleWrite.RECORDS_WRITTEN,
@@ -163,7 +164,7 @@ private[spark] object InternalAccumulator {
   /**
    * Accumulators for tracking input metrics.
    */
-  def createInputAccums(): Seq[Accumulator[_]] = {
+  def createInputAccums(): Seq[NewAccumulator[_, _]] = {
     Seq[String](
       input.READ_METHOD,
       input.BYTES_READ,
@@ -173,7 +174,7 @@ private[spark] object InternalAccumulator {
   /**
    * Accumulators for tracking output metrics.
    */
-  def createOutputAccums(): Seq[Accumulator[_]] = {
+  def createOutputAccums(): Seq[NewAccumulator[_, _]] = {
     Seq[String](
       output.WRITE_METHOD,
       output.BYTES_WRITTEN,
@@ -187,7 +188,7 @@ private[spark] object InternalAccumulator {
    * add to the same set of accumulators. We do this to report the distribution of accumulator
    * values across all tasks within each stage.
    */
-  def create(sc: SparkContext): Seq[Accumulator[_]] = {
+  def create(sc: SparkContext): Seq[NewAccumulator[_, _]] = {
     val accums = createAll()
     accums.foreach { accum =>
       Accumulators.register(accum)
@@ -202,7 +203,7 @@ private[spark] object InternalAccumulator {
   private def newMetric[T](
       initialValue: T,
       name: String,
-      param: AccumulatorParam[T]): Accumulator[T] = {
+      param: AccumulatorParam[T]): NewAccumulator[T] = {
     new Accumulator[T](initialValue, param, Some(name), internal = true, countFailedValues = true)
   }
 

@@ -1217,11 +1217,15 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
    * Create an [[org.apache.spark.Accumulator]] variable of a given type, which tasks can "add"
    * values to using the `+=` method. Only the driver can access the accumulator's `value`.
    */
-  def accumulator[T](initialValue: T)(implicit param: AccumulatorParam[T]): Accumulator[T] =
-  {
+  def accumulator[T](initialValue: T)(implicit param: AccumulatorParam[T]): Accumulator[T] = {
     val acc = new Accumulator(initialValue, param)
     cleaner.foreach(_.registerAccumulatorForCleanup(acc))
     acc
+  }
+
+  def registerAccumulator[IN, OUT](acc: org.apache.spark.accumulator.NewAccumulator[IN, OUT])
+    : org.apache.spark.accumulator.NewAccumulator[IN, OUT] = {
+    null
   }
 
   /**
