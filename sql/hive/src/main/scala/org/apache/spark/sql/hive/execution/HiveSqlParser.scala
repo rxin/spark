@@ -106,7 +106,7 @@ class HiveSqlAstBuilder(hiveConf: HiveConf) extends SparkSqlAstBuilder {
       ctx.identifier.getText.toLowerCase == "noscan") {
       AnalyzeTable(visitTableIdentifier(ctx.tableIdentifier).toString)
     } else {
-      HiveNativeCommand(command(ctx))
+      throw new ParseException(s"Unsupported analyze command", ctx)
     }
   }
 
