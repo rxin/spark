@@ -20,9 +20,9 @@ package org.apache.spark.sql.catalyst.catalog
 import javax.annotation.Nullable
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.analysis.MultiInstanceRelation
 import org.apache.spark.sql.catalyst.{FunctionIdentifier, TableIdentifier}
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference}
+import org.apache.spark.sql.catalyst.analysis.MultiInstanceRelation
+import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.parser.DataTypeParser
 import org.apache.spark.sql.catalyst.plans.logical.{LeafNode, LogicalPlan}
 
@@ -321,4 +321,5 @@ case class CatalogRelation(
     }
   }
 
+  override def newInstance(): LogicalPlan = copy()
 }
