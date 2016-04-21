@@ -20,8 +20,10 @@ package org.apache.spark.sql.catalyst.catalog
 import javax.annotation.Nullable
 
 import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.analysis.MultiInstanceRelation
 import org.apache.spark.sql.catalyst.{FunctionIdentifier, TableIdentifier}
-import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference}
+import org.apache.spark.sql.catalyst.parser.DataTypeParser
 import org.apache.spark.sql.catalyst.plans.logical.{LeafNode, LogicalPlan}
 
 
@@ -299,13 +301,24 @@ object ExternalCatalog {
  */
 case class CatalogRelation(
     db: String,
-    metadata: CatalogTable,
+    table: CatalogTable,
     alias: Option[String] = None)
-  extends LeafNode {
+  extends LeafNode with MultiInstanceRelation {
 
-  // TODO: implement this
-  override def output: Seq[Attribute] = Seq.empty
-
-  require(metadata.identifier.database == Some(db),
+  require(table.identifier.database == Some(db),
     "provided database does not match the one specified in the table definition")
+
+  override val output: Seq[AttributeReference] = {
+    val attributes = table.schema.filter { c => !table.partitionColumnNames.contains(c.name) }
+    val partitionKeys = table.partitionColumns
+    (attributes ++ partitionKeys).map { column: CatalogColumn =>
+      AttributeReference(
+        column.name,
+        DataTypeParser.parse(column.dataType),
+        // Since data can be dumped in randomly with no validation, everything is nullable.
+        nullable = true
+      )(qualifier = Some(alias.getOrElse(table.identifier.table)))
+    }
+  }
+
 }
