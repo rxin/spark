@@ -43,6 +43,8 @@ case class ShuffleExchange(
   override private[sql] lazy val metrics = Map(
     "dataSize" -> SQLMetrics.createSizeMetric(sparkContext, "data size"))
 
+  override def simpleString: String = s"$nodeName $newPartitioning"
+
   override def nodeName: String = {
     val extraInfo = coordinator match {
       case Some(exchangeCoordinator) if exchangeCoordinator.isEstimated =>

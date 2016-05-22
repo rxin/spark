@@ -153,10 +153,10 @@ class Column(protected[sql] val expr: Expression) extends Logging {
       case Cast(ne: NamedExpression, to) => UnresolvedAlias(Cast(ne, to))
     } match {
       case ne: NamedExpression => ne
-      case other => Alias(expr, usePrettyExpression(expr).sql)()
+      case other => Alias(expr, usePrettyExpression(expr).sql)(isGenerated = true)
     }
 
-    case expr: Expression => Alias(expr, usePrettyExpression(expr).sql)()
+    case expr: Expression => Alias(expr, usePrettyExpression(expr).sql)(isGenerated = true)
   }
 
   override def toString: String = usePrettyExpression(expr).sql

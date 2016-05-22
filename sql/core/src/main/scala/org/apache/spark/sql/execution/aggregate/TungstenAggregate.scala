@@ -762,14 +762,19 @@ case class TungstenAggregate(
   override def simpleString: String = {
     val allAggregateExpressions = aggregateExpressions
 
+    def format[T](values: Seq[T]): String = values match {
+      case Nil => "none"
+      case v :: Nil => v.toString
+      case _ => values.mkString("[", ",", "]")
+    }
+
     testFallbackStartsAt match {
       case None =>
-        val keyString = groupingExpressions.mkString("[", ",", "]")
-        val functionString = allAggregateExpressions.mkString("[", ",", "]")
-        val outputString = output.mkString("[", ",", "]")
-        s"TungstenAggregate(key=$keyString, functions=$functionString, output=$outputString)"
+        val keyString = format(groupingExpressions)
+        val functionString = format(allAggregateExpressions)
+        s"Aggregate key=$keyString, agg=$functionString, out=${format(resultExpressions)}"
       case Some(fallbackStartsAt) =>
-        s"TungstenAggregateWithControlledFallback $groupingExpressions " +
+        s"AggregateWithControlledFallback $groupingExpressions " +
           s"$allAggregateExpressions $resultExpressions fallbackStartsAt=$fallbackStartsAt"
     }
   }
@@ -780,4 +785,6 @@ object TungstenAggregate {
     val aggregationBufferSchema = StructType.fromAttributes(aggregateBufferAttributes)
     UnsafeFixedWidthAggregationMap.supportsAggregationBufferSchema(aggregationBufferSchema)
   }
+
+  // def simpleString(keyExprs: Seq[NamedExpression], valueExprs: Seq[AggregateExpression])
 }

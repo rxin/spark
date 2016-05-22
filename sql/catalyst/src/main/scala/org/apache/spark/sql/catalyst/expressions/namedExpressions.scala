@@ -169,7 +169,9 @@ case class Alias(child: Expression, name: String)(
     }
   }
 
-  override def toString: String = s"$child AS $name#${exprId.id}$typeSuffix"
+  override def toString: String = {
+    if (isGenerated) child.toString else s"$child AS $name#${exprId.id}$typeSuffix"
+  }
 
   override protected final def otherCopyArgs: Seq[AnyRef] = {
     exprId :: qualifier :: explicitMetadata :: isGenerated :: Nil
