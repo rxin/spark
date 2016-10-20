@@ -377,6 +377,9 @@ object GenerateUnsafeProjection extends CodeGenerator[Seq[Expression], UnsafePro
 
         public SpecificUnsafeProjection(Object[] references) {
           this.references = references;
+        }
+
+        public void init(int partitionIndex) {
           ${ctx.initMutableStates()}
         }
 

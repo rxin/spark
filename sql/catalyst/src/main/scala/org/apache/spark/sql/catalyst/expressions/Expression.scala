@@ -275,6 +275,7 @@ trait Nondeterministic extends Expression {
   private[this] var initialized = false
 
   final def setInitialValues(): Unit = {
+    new Exception().printStackTrace()
     initInternal()
     initialized = true
   }
